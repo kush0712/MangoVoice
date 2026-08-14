@@ -1,0 +1,27 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+httpx==0.28.1
+tenacity==9.0.0
+orjson==3.10.12
+python-multipart==0.0.20
+groq==0.13.1
+
+# Embeddings & retrieval
+fastembed==0.4.2
+lancedb==0.17.0
+tantivy==0.22.0
+
+# Data ingestion & evaluation
+datasets==3.2.0
+numpy==2.2.0
+pandas==2.2.3
+scikit-learn==1.6.0
+nltk==3.9.1
+sentence-transformers==3.3.1
+
+# Utilities
+python-dotenv==1.0.1
+rich==13.9.4
+tqdm==4.67.1
