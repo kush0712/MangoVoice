@@ -74,9 +74,10 @@ async def query(
     if audio.size and audio.size > settings.max_audio_bytes:
         raise HTTPException(status_code=413, detail="Audio file too large")
 
-    content_type = audio.content_type or ""
-    if not any(ct in content_type for ct in ("audio", "octet-stream", "webm", "wav", "ogg")):
+    content_type = (audio.content_type or "").lower()
+    if not any(ct in content_type for ct in ("audio", "octet-stream", "webm", "wav", "ogg", "mp4", "m4a", "aac", "opus")):
         logger.warning("Unexpected content_type: %s", content_type)
+
 
     audio_bytes = await audio.read()
     if len(audio_bytes) == 0:

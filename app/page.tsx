@@ -128,11 +128,13 @@ export default function Home() {
 
     try {
       await startRecording();
-    } catch (err) {
-      setErrorMsg("Microphone access denied");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Microphone access denied";
+      setErrorMsg(msg);
       setAppState("error");
     }
   }, [appState, startRecording, stopRecording, language, handleResult]);
+
 
   // ── Handle demo query click ───────────────────────────────────────────────
   const handleDemoQuery = useCallback(

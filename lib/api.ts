@@ -67,29 +67,58 @@ export async function queryAudio(
   language: string = "auto"
 ): Promise<QueryResponse> {
   const formData = new FormData();
-  formData.append("audio", audioBlob, "recording.webm");
+  let filename = "recording.webm";
+  if (audioBlob.type.includes("mp4") || audioBlob.type.includes("m4a") || audioBlob.type.includes("aac")) {
+    filename = "recording.mp4";
+  } else if (audioBlob.type.includes("wav")) {
+    filename = "recording.wav";
+  } else if (audioBlob.type.includes("ogg")) {
+    filename = "recording.ogg";
+  }
+  formData.append("audio", audioBlob, filename);
   formData.append("language", language);
 
-  const res = await fetch(`${BASE}/api/query`, {
-    method: "POST",
-    body: formData,
-  });
-  return handleResponse<QueryResponse>(res);
+  try {
+    const res = await fetch(`${BASE}/api/query`, {
+      method: "POST",
+      body: formData,
+    });
+    return await handleResponse<QueryResponse>(res);
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
+        throw new Error("Unable to connect to backend server. Please verify the backend is running on http://127.0.0.1:8000.");
+      }
+      throw err;
+    }
+    throw new Error("Network request failed");
+  }
 }
 
 export async function queryText(
   text: string,
   language: string = "auto"
 ): Promise<QueryResponse> {
-  const res = await fetch(`${BASE}/api/query/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, language }),
-  });
-  return handleResponse<QueryResponse>(res);
+  try {
+    const res = await fetch(`${BASE}/api/query/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language }),
+    });
+    return await handleResponse<QueryResponse>(res);
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
+        throw new Error("Unable to connect to backend server. Please verify the backend is running on http://127.0.0.1:8000.");
+      }
+      throw err;
+    }
+    throw new Error("Network request failed");
+  }
 }
 
 export async function checkHealth(): Promise<HealthResponse> {
   const res = await fetch(`${BASE}/api/health`, { cache: "no-store" });
   return handleResponse<HealthResponse>(res);
 }
+

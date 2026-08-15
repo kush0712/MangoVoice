@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE ?? "";
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  (process.env.NODE_ENV === "production" ? "" : "http://127.0.0.1:8000");
 
 // Only add the proxy rewrite when we have a valid absolute URL.
-// This prevents the Vercel build from failing when the env var is missing.
 const isValidUrl =
   BACKEND_URL.startsWith("http://") || BACKEND_URL.startsWith("https://");
 
@@ -20,3 +21,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

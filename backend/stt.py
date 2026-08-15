@@ -29,6 +29,24 @@ class STTError(Exception):
         super().__init__(message)
 
 
+def _detect_audio_format(audio_bytes: bytes) -> tuple[str, str]:
+    """Detect file extension and mime-type from header bytes."""
+    if audio_bytes.startswith(b"RIFF") and b"WAVE" in audio_bytes[:16]:
+        return "audio.wav", "audio/wav"
+    if audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
+        return "audio.webm", "audio/webm"
+    if audio_bytes.startswith(b"OggS"):
+        return "audio.ogg", "audio/ogg"
+    if len(audio_bytes) >= 12 and (
+        audio_bytes[4:8] in (b"ftyp", b"moov", b"mdat") or
+        audio_bytes[8:12] in (b"ftyp", b"mp42", b"isom", b"M4A ", b"mp41")
+    ):
+        return "audio.mp4", "audio/mp4"
+    if audio_bytes.startswith(b"\xff\xf1") or audio_bytes.startswith(b"\xff\xf9"):
+        return "audio.aac", "audio/aac"
+    return "audio.webm", "audio/webm"
+
+
 @retry(
     stop=stop_after_attempt(2),
     wait=wait_fixed(0.5),
@@ -40,7 +58,8 @@ async def _call_sarvam(audio_bytes: bytes, language: str) -> dict:
     if not settings.has_sarvam_key:
         raise STTError(RefusalReason.STT_FAILED, "SARVAM_API_KEY not configured")
 
-    files = {"file": ("audio.webm", BytesIO(audio_bytes), "audio/webm")}
+    filename, mime = _detect_audio_format(audio_bytes)
+    files = {"file": (filename, BytesIO(audio_bytes), mime)}
     data = {
         "model": settings.sarvam_model,
         "with_timestamps": "false",
@@ -64,6 +83,7 @@ async def _call_sarvam(audio_bytes: bytes, language: str) -> dict:
         )
         resp.raise_for_status()
         return resp.json()
+
 
 
 async def transcribe(audio_bytes: bytes, language: str = "auto") -> TranscriptResult:
