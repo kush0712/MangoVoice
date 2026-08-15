@@ -14,7 +14,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Cache-bust arg
-ARG CACHE_BUST=6
+ARG CACHE_BUST=7
 
 # ── BAKE THE LANCEDB INDEX INTO THE DOCKER IMAGE! ────────────────────────────
 # By doing this at build-time, we don't need a Railway Volume at all!

@@ -10,8 +10,8 @@ groq==0.13.1
 
 # Embeddings & retrieval
 fastembed==0.4.2
-lancedb==0.17.0
-tantivy==0.22.0
+lancedb>=0.17.0
+tantivy>=0.22.0
 
 # Data ingestion & evaluation
 datasets==3.2.0
