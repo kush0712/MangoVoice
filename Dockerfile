@@ -13,13 +13,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source
+# Cache-bust arg — increment to force Railway to re-copy source files
+ARG CACHE_BUST=3
 COPY . .
 
 # Make startup script executable
 RUN chmod +x startup.sh
 
-# Railway injects $PORT; uvicorn picks it up via startup.sh
 ENV PYTHONUNBUFFERED=1
 ENV APP_ENV=production
 
