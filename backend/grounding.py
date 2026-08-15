@@ -22,8 +22,8 @@ from backend.telemetry import get_logger
 logger = get_logger(__name__)
 
 # Grounding thresholds
-SENTENCE_SIMILARITY_THRESHOLD = 0.50  # minimum cosine sim sentence ↔ evidence
-OVERALL_GROUNDING_THRESHOLD = 0.45    # minimum average grounding score to pass
+SENTENCE_SIMILARITY_THRESHOLD = 0.55  # minimum cosine sim sentence ↔ evidence
+OVERALL_GROUNDING_THRESHOLD = 0.60    # minimum average grounding score to pass (47% will now REFUSE)
 
 
 def _split_sentences(text: str) -> list[str]:

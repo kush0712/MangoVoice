@@ -111,9 +111,9 @@ def layer1_check(text: str) -> GuardrailResult:
 
 async def layer2_prompt_guard(text: str) -> GuardrailResult:
     """
-    Groq Llama Guard 4 safety classification.
+    Groq Llama Prompt Guard 2 safety classification.
+    Model: meta-llama/llama-prompt-guard-2-86m
     Runs in parallel with retrieval. Skipped if Groq key unavailable.
-    Model: llama-guard-4-12b (replaces deprecated llama-guard-3-8b).
     """
     if not settings.has_groq_key:
         return GuardrailResult(passed=True, message="Safety check skipped (no GROQ key)")
@@ -123,11 +123,10 @@ async def layer2_prompt_guard(text: str) -> GuardrailResult:
         from groq import AsyncGroq
         client = AsyncGroq(api_key=settings.groq_api_key)
 
-        # Fast safety classification with Llama 3.1
+        # Llama Prompt Guard 2: classify the user message
         chat_resp = await client.chat.completions.create(
-            model=settings.groq_safety_model or "llama-3.1-8b-instant",
+            model="meta-llama/llama-prompt-guard-2-86m",
             messages=[
-                {"role": "system", "content": "You are a content safety filter. If the user prompt is safe to answer, output 'safe'. If it asks for dangerous, illegal, or malicious instructions, output 'unsafe'."},
                 {"role": "user", "content": text},
             ],
             max_tokens=10,
@@ -137,7 +136,8 @@ async def layer2_prompt_guard(text: str) -> GuardrailResult:
         classification = (chat_resp.choices[0].message.content or "safe").strip().lower()
         latency_ms = (time.perf_counter() - t0) * 1000
 
-        is_unsafe = classification.startswith("unsafe")
+        # Prompt Guard 2 returns: "safe" or "injection" / "jailbreak"
+        is_unsafe = any(w in classification for w in ("injection", "jailbreak", "unsafe", "malicious"))
         if is_unsafe:
             category = classification.split("\n")[-1].strip() if "\n" in classification else "unsafe"
             logger.info(
