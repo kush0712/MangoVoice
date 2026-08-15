@@ -47,12 +47,13 @@ async def _call_sarvam(audio_bytes: bytes, language: str) -> dict:
         "with_disfluencies": "false",
     }
 
-    # Use codemix mode unless a specific language is explicitly set
-    if language and language != "auto":
+    # Use codemix / auto-detection unless a specific language is explicitly set
+    if language and language not in ("auto", "unknown"):
         data["language_code"] = language
     else:
-        # Sarvam codemix: handles Hindi/English/Hinglish automatically
-        data["language_code"] = "hi-IN"  # default hint; sarvam handles mixing
+        # Sarvam Saaras v3: 'unknown' enables automatic language identification
+        # (transcribes English as English text, Hindi as Hindi text, Hinglish as codemixed)
+        data["language_code"] = "unknown"
 
     async with httpx.AsyncClient(timeout=settings.sarvam_timeout) as client:
         resp = await client.post(
