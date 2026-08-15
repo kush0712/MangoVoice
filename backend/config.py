@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     final_top_k: int = 8
     rrf_k: int = 60
 
-    # ── Confidence gate (calibrated for cosine-similarity-based confidence formula) ─
-    confidence_low_threshold: float = 0.30   # passes when dense_sim ≥ 0.18 (genuine Hindi/Hinglish semantic overlap)
+    # ── Confidence gate (calibrated for consistent mean-pooling multilingual MiniLM) ─
+    confidence_low_threshold: float = 0.18   # allow English/Hindi/Hinglish queries through (genuine semantic overlap)
     confidence_margin_min: float = 0.05
     confidence_min_supporting: int = 2
 

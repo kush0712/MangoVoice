@@ -4,9 +4,9 @@
   "chunking_strategy": "parent_child",
   "index_path": "data/lancedb",
   "table_name": "chunks",
-  "total_passages": 59627,
-  "total_chunks": 63596,
-  "indexed_rows": 63596,
+  "total_passages": 59646,
+  "total_chunks": 63615,
+  "indexed_rows": 63615,
   "vector_dim": 384,
   "index_type": "IVF_PQ + BM25"
 }

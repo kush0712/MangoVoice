@@ -49,12 +49,13 @@ def compute_retrieval_confidence(
     # lancedb_store before RRF fusion overwrites .score with the tiny RRF value.
     dense_top_sim = dense_sources[0].raw_dense_score if dense_sources else 0.0
 
-    # Calibrated thresholds (empirically tuned for multilingual MiniLM with Hindi/Hinglish queries):
-    # >0.30  → strong semantic match  (norm = 1.0)
-    # 0.12–0.30 → moderate/paraphrase overlap  (norm scales linearly)
-    # <0.12  → likely keyword coincidence or fully off-topic (norm ≈ 0)
-    SIM_HIGH = 0.30
-    SIM_LOW  = 0.12
+    # Calibrated thresholds for multilingual MiniLM (paraphrase variant, mean pooling):
+    # >0.25  → strong semantic match  (norm = 1.0)
+    # 0.08–0.25 → moderate/paraphrase overlap  (norm scales linearly)
+    # <0.08  → likely keyword coincidence or fully off-topic (norm ≈ 0)
+    # These values work for English, Hindi, and Hinglish with consistent mean-pooling embeddings.
+    SIM_HIGH = 0.25
+    SIM_LOW  = 0.08
     if dense_top_sim >= SIM_HIGH:
         norm_dense = 1.0
     elif dense_top_sim <= SIM_LOW:
@@ -94,8 +95,6 @@ def should_generate(result: RetrievalResult) -> bool:
     Returns True → proceed to generation; False → REFUSE.
     """
     T_low = settings.confidence_low_threshold
-    margin_min = settings.confidence_margin_min
-    min_supporting = settings.confidence_min_supporting
 
     if result.confidence < T_low:
         logger.info(
@@ -104,13 +103,13 @@ def should_generate(result: RetrievalResult) -> bool:
         )
         return False
 
-    # Borderline: require dense/BM25 cross-modal agreement to proceed
-    # This prevents surface-level keyword coincidences (e.g. same word in unrelated context)
-    # from slipping through when the retrieval score is only marginally above threshold.
-    is_borderline = result.confidence < T_low * 1.35
-    if is_borderline and not result.dense_bm25_agree:
+    # Borderline safety: only require cross-modal agreement in a tighter band
+    # (T_low → T_low * 1.20) to avoid keyword coincidences slipping through,
+    # but with a wider tolerance than before so legitimate English queries aren't refused.
+    is_borderline = result.confidence < T_low * 1.20
+    if is_borderline and not result.dense_bm25_agree and result.supporting_count < 2:
         logger.info(
-            "Confidence gate: REFUSE borderline without cross-modal agreement (confidence=%.3f agree=%s)",
+            "Confidence gate: REFUSE borderline without cross-modal agreement and < 2 sources (confidence=%.3f agree=%s)",
             result.confidence, result.dense_bm25_agree,
         )
         return False
