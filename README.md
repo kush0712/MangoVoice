@@ -131,12 +131,12 @@ The frontend uses all four endpoints: health polling (30s interval), audio query
 `ai4bharat/MSMARCO-XI` — multilingual MSMARCO with Indic translations.
 
 **What's indexed:**
-- **59,646 unique passages** (including targeted multilingual seeds for robustness)
-- Chunked into **63,615 parent-child chunks** using Strategy E (best evaluated performance)
-- Embedded locally with FastEmbed ONNX (Mean Pooling) — zero cloud embedding cost
+- **59,646 unique passages** (confirmed: `raw_passages_with_seeds.jsonl` line count matches `manifest.json`)
+- Chunked into **63,615 parent-child chunks** using Strategy E (confirmed: `manifest.json` `total_chunks`)
+- Embedded locally with FastEmbed ONNX (Mean Pooling, 384-dim) — zero cloud embedding cost
 - Stored in LanceDB with IVF_PQ ANN index + BM25 Full-Text Search
 
-**Evaluation** uses 500 held-out validation queries with gold passage labels (never seen during index tuning).
+**Evaluation** uses a 500-query validation set (`data/val_passages.jsonl`) with gold passage labels. The chunking eval runs 100 queries per strategy; the latency benchmark ran 199 queries (all answered in <63ms local time).
 
 ---
 
@@ -219,7 +219,7 @@ Both reported separately in `LatencyMetrics` (per-stage: `stt_ms`, `embedding_ms
 
 ## 12. P50 / P70 / P100 Results
 
-Measured over validation queries via `evaluation/latency_benchmark.py` (`reports/latency_results.json`):
+Measured over validation queries via `evaluation/latency_benchmark.py` (`reports/latency_results.json` — N=199, 10 warm-up):
 
 ```
 MANGOVOICE LATENCY BENCHMARK
@@ -233,13 +233,16 @@ Safety (L1 Deterministic)     0.0        0.0        0.0        0.0
 Grounding Verifier (L4)      14.7       15.6       51.4       14.5
 --------------------------------------------------------------------
 Local Subsystems Total       24.3       25.6       62.1       24.6
-Groq LLM Generation*        204.1      300.1      410.2      304.8
 --------------------------------------------------------------------
-*Groq LLM generation is measured isolated to avoid Free Tier 429 rate limits during benchmarking.
-Total local RAG Core processing time (excluding network STT/LLM) is ~25ms, absolutely crushing the <200ms target.
+Groq LLM Generation†        ~200–400ms range (isolated manual measurement)
+--------------------------------------------------------------------
+† The benchmark skips live Groq calls to avoid rate-limiting the free tier.
+  Groq generation latency was measured separately in isolated runs.
+  All numbers in the table above are verified from reports/latency_results.json.
+  Total local RAG Core (excluding STT + LLM) = ~25ms P50 — crushes the <200ms target.
 ```
 
-Answer Rate: **98.0%** | Refusal Rate: **2.0%** (Low evidence queries properly rejected)
+Answer Rate: **99.0%** (197/199) | Refusal Rate: **1.0%** (2/199 — low evidence queries properly rejected)
 
 ---
 
