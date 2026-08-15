@@ -3,11 +3,8 @@
 #
 # Strategy:
 #   1. Start uvicorn IMMEDIATELY (health check passes right away)
-#   2. In BACKGROUND: download pre-built LanceDB index from GitHub Releases
-#      (avoids building 63k embeddings at runtime = no OOM on 512MB plan)
-#
-# Pre-built index: github.com/kush0712/MangoVoice/releases/tag/v1.0.0-index
-# Contains: 63615 chunks, 384-dim multilingual embeddings (IVF_PQ + BM25)
+#   2. In BACKGROUND: stream pre-built LanceDB index from GitHub Releases directly to tar
+#      (Zero intermediate disk usage, no OOM, clean unpack)
 
 set -e
 
@@ -35,20 +32,21 @@ export FASTEMBED_CACHE_DIR="$FASTEMBED_CACHE"
 if [ ! -f "$LOCK_FILE" ]; then
     echo ">>> Index not found — will download pre-built index in background."
     (
-        sleep 5  # brief pause for uvicorn to bind the port
-        echo ">>> [BG] Downloading pre-built LanceDB index (~346MB)..."
+        sleep 3  # brief pause for uvicorn to bind the port
+        echo ">>> [BG] Streaming and extracting pre-built LanceDB index directly..."
 
-        TARBALL="${DATA_DIR}/index.tar.gz"
-        curl -L --retry 3 --retry-delay 5 \
-            -o "$TARBALL" \
-            "$INDEX_URL"
+        # Clean any partial failed extractions
+        rm -rf "$INDEX_PATH"
 
-        echo ">>> [BG] Extracting index to $DATA_DIR ..."
-        tar -xzf "$TARBALL" -C "$DATA_DIR"
-        rm -f "$TARBALL"
+        # Stream directly from curl to tar (uses 0 extra temp disk space!)
+        curl -sSL --retry 5 --retry-delay 3 "$INDEX_URL" | tar -xzf - -C "$DATA_DIR"
 
-        touch "$LOCK_FILE"
-        echo ">>> [BG] Index ready at $INDEX_PATH — app is now fully operational!"
+        if [ -d "$INDEX_PATH" ]; then
+            touch "$LOCK_FILE"
+            echo ">>> [BG] Index ready at $INDEX_PATH — MangoVoice is fully ready!"
+        else
+            echo ">>> [BG] Extraction failed or index folder not found" >&2
+        fi
     ) &
     disown
 else
