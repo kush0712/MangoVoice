@@ -87,7 +87,7 @@ export async function queryAudio(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error("Unable to connect to backend server. Please verify the backend is running on http://127.0.0.1:8000.");
+        throw new Error(`Unable to connect to backend server (tried ${BASE || "default proxy"}). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
       }
       throw err;
     }
@@ -109,7 +109,7 @@ export async function queryText(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error("Unable to connect to backend server. Please verify the backend is running on http://127.0.0.1:8000.");
+        throw new Error(`Unable to connect to backend server (tried ${BASE || "default proxy"}). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
       }
       throw err;
     }
