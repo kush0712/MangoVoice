@@ -1,8 +1,7 @@
 #!/bin/bash
 # MangoVoice — Railway startup script
-# Mounts a Railway persistent volume at /data (configured in Railway dashboard).
-# On first boot: builds the LanceDB index from committed JSONL.
-# On subsequent boots: reuses the persisted index (fast).
+# Starts uvicorn FIRST so the health check passes immediately,
+# then builds the LanceDB index in the background on first boot.
 
 set -e
 
@@ -17,44 +16,44 @@ echo "=== MangoVoice Startup ==="
 echo "DATA_DIR: $DATA_DIR"
 echo "PORT: $PORT"
 
-# Create data dirs on the volume
+# Create dirs on the volume
 mkdir -p "$INDEX_PATH"
 mkdir -p "$FASTEMBED_CACHE"
 
-# ── Build index if not already done ──────────────────────────────────────────
+# Export paths so the app reads from the volume
+export INDEX_PATH="$INDEX_PATH"
+export FASTEMBED_CACHE_DIR="$FASTEMBED_CACHE"
+
+# ── Build index in BACKGROUND if not already done ────────────────────────────
 if [ ! -f "$LOCK_FILE" ]; then
-    echo ">>> Index not found — building from $RAW_PASSAGES ..."
+    echo ">>> Index not found — will build in background after uvicorn starts."
+    (
+        sleep 10  # give uvicorn time to start and pass health check
+        echo ">>> [BG] Starting index build from $RAW_PASSAGES ..."
 
-    if [ ! -f "$RAW_PASSAGES" ]; then
-        echo "ERROR: $RAW_PASSAGES not found. Check git commit." >&2
-        exit 1
-    fi
+        if [ ! -f "$RAW_PASSAGES" ]; then
+            echo "ERROR: $RAW_PASSAGES not found." >&2
+            exit 1
+        fi
 
-    # Count passages (use all of them)
-    PASSAGE_COUNT=$(wc -l < "$RAW_PASSAGES")
-    echo ">>> Total passages: $PASSAGE_COUNT"
+        INDEX_PATH="$INDEX_PATH" \
+        FASTEMBED_CACHE_DIR="$FASTEMBED_CACHE" \
+        python -m ingestion.build_index \
+            --input "$RAW_PASSAGES" \
+            --output "$INDEX_PATH" \
+            --strategy parent_child \
+            --table chunks \
+            --batch-size 256 \
+            --max-passages 0
 
-    INDEX_PATH="$INDEX_PATH" \
-    FASTEMBED_CACHE_DIR="$FASTEMBED_CACHE" \
-    python -m ingestion.build_index \
-        --input "$RAW_PASSAGES" \
-        --output "$INDEX_PATH" \
-        --strategy parent_child \
-        --table chunks \
-        --batch-size 512 \
-        --max-passages 0
-
-    touch "$LOCK_FILE"
-    echo ">>> Index built and saved to $INDEX_PATH"
+        touch "$LOCK_FILE"
+        echo ">>> [BG] Index built successfully at $INDEX_PATH"
+    ) &
 else
     echo ">>> Existing index found at $INDEX_PATH — skipping build."
 fi
 
-# ── Export paths for the app ──────────────────────────────────────────────────
-export INDEX_PATH="$INDEX_PATH"
-export FASTEMBED_CACHE_DIR="$FASTEMBED_CACHE"
-
-# ── Start FastAPI ─────────────────────────────────────────────────────────────
+# ── Start FastAPI immediately ─────────────────────────────────────────────────
 echo ">>> Starting uvicorn on port $PORT ..."
 exec uvicorn api.index:app \
     --host 0.0.0.0 \
