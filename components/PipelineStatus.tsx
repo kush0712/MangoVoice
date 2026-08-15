@@ -97,8 +97,8 @@ export default function PipelineStatus({ steps, visible }: PipelineStatusProps) 
 export const DEFAULT_STEPS: PipelineStep[] = [
   { id: "listen", label: "Listening", emoji: "🎙", status: "pending" },
   { id: "transcribe", label: "Transcribing", emoji: "📝", status: "pending" },
-  { id: "retrieve", label: "Retrieving", emoji: "🔎", status: "pending" },
   { id: "safety", label: "Safety Check", emoji: "🛡", status: "pending" },
+  { id: "retrieve", label: "Retrieving", emoji: "🔎", status: "pending" },
   { id: "generate", label: "Generating", emoji: "🧠", status: "pending" },
   { id: "ground", label: "Grounding", emoji: "⚡", status: "pending" },
   { id: "done", label: "Answered", emoji: "✓", status: "pending" },

@@ -76,6 +76,11 @@ export default function Home() {
       if (res.status === "answered") {
         s = activateStep(s, "done");
         s = updateStep(s, "done", "done");
+        s = s.map((step) =>
+          ["safety", "generate", "ground"].includes(step.id)
+            ? { ...step, status: "done" }
+            : step
+        );
       } else {
         s = s.map((step) =>
           step.status === "active"
