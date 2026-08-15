@@ -26,7 +26,8 @@ If the system can't find sufficient evidence → it **refuses to answer**.
 
 ## 2. Live Demo
 
-🔗 [mangovoice.vercel.app](https://mangovoice.vercel.app) *(deploy after adding API keys)*
+🔗 **Frontend (Vercel):** [mangovoice.vercel.app](https://mangovoice.vercel.app)  
+🚂 **Backend (Railway):** FastAPI + LanceDB — proxied transparently through the Next.js frontend
 
 ---
 
@@ -69,7 +70,8 @@ FastAPI Python API (/api/query)
 | Schemas | Pydantic v2 | Every stage typed |
 | Retries | Tenacity | Bounded, never infinite |
 | Backend | FastAPI + uvicorn | Async, high performance |
-| Hosting | Vercel Hobby | Free, unified Next.js+Python |
+| Frontend hosting | **Vercel Hobby** | Free, Next.js-native CI/CD |
+| Backend hosting | **Railway** (Docker) | Persistent RAM for 800MB index |
 
 ---
 
@@ -196,7 +198,9 @@ Answer Rate: **98.0%** | Refusal Rate: **2.0%** (Low evidence queries properly r
 | FastEmbed embeddings | $0 (local ONNX) |
 | LanceDB vector DB | $0 (embedded) |
 | Groq llama-3.1-8b-instant | $0 (free tier) |
-| Vercel Hobby hosting | $0 |
+| Vercel Hobby (frontend) | $0 |
+| Railway (backend Docker) | ~$5/mo hobby plan |
+| GitHub Releases (index storage) | $0 |
 | GitHub | $0 |
 
 ---
@@ -247,10 +251,47 @@ python -m evaluation.latency_benchmark --n 500
 
 ## 14. Deployment Architecture
 
-To meet the 200ms latency target and bypass Vercel's 250MB Serverless size limits (the 60k-passage LanceDB index is ~800MB):
-1. **Frontend**: Deploy to Vercel (fast, static Next.js assets).
-2. **Backend**: Deploy to a VPS (Render, Railway, DigitalOcean) using Docker. This keeps the 800MB vector index in persistent RAM, preventing 5-10s cold starts and enabling the ~25ms local retrieval times shown above.
-3. Configure `NEXT_PUBLIC_API_URL` on Vercel to point to your VPS backend.
+Vercel's Serverless Functions have a **250MB size limit** — the LanceDB index alone is ~800MB. The solution is a split-deploy:
+
+```
+User
+  │
+  ▼
+Vercel (Next.js frontend)            ← mangovoice.vercel.app
+  │  /api/* rewrites (next.config.ts)
+  ▼
+Railway (FastAPI + Docker)           ← internal Railway URL
+  └── LanceDB index baked into Docker image at build time
+```
+
+### Frontend — Vercel
+
+- **What:** Next.js 16 app (UI, voice recording, results display)
+- **Config:** [`vercel.json`](vercel.json) — `{ "framework": "nextjs" }`
+- **Python excluded:** [`.vercelignore`](.vercelignore) excludes the entire `api/` and `backend/` Python tree so Vercel never tries to bundle it
+- **Proxy routing:** [`next.config.ts`](next.config.ts) rewrites `/api/*` → `$NEXT_PUBLIC_API_BASE/api/*` (Railway URL), so the browser never makes a cross-origin request — CORS is a non-issue
+- **Env var needed:** `NEXT_PUBLIC_API_BASE=https://<your-railway-service>.railway.app`
+
+### Backend — Railway
+
+- **What:** FastAPI + uvicorn serving the RAG pipeline
+- **Config:** [`railway.json`](railway.json) — tells Railway to build via `Dockerfile` and start with `startup.sh`
+- **Docker strategy:** [`Dockerfile`](Dockerfile) **bakes the LanceDB index directly into the image** at build time by downloading from GitHub Releases (`v1.0.0-index`). This completely bypasses Railway's volume disk limits (was hitting "No space left on device" with runtime downloads)
+- **Startup:** [`startup.sh`](startup.sh) — simply starts uvicorn; no runtime download needed since index is already in `/app/data/lancedb`
+- **Env vars needed on Railway:** `SARVAM_API_KEY`, `GROQ_API_KEY`
+
+### Local Development
+
+In local dev, `next.config.ts` proxies `/api/*` → `http://127.0.0.1:8000` automatically (no env var needed).
+
+### Why not Vercel Serverless for the backend?
+
+| Constraint | Detail |
+|-----------|--------|
+| 250MB function size limit | LanceDB index is ~800MB → instant fail |
+| No persistent filesystem | LanceDB needs to mmap the index between requests |
+| Cold-start latency | Serverless = 5-10s cold start, destroying the <200ms target |
+| Railway Docker | Persistent process, index in RAM, ~25ms retrieval |
 
 ---
 
