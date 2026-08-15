@@ -79,7 +79,7 @@ export async function queryAudio(
   formData.append("language", language);
 
   try {
-    const res = await fetch(`${BASE}/api/query`, {
+    const res = await fetch(`/api/query`, {
       method: "POST",
       body: formData,
     });
@@ -87,7 +87,7 @@ export async function queryAudio(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error(`Unable to connect to backend server (tried ${BASE || "default proxy"}). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
+        throw new Error(`Unable to connect to backend server (proxied via /api/query). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
       }
       throw err;
     }
@@ -100,7 +100,7 @@ export async function queryText(
   language: string = "auto"
 ): Promise<QueryResponse> {
   try {
-    const res = await fetch(`${BASE}/api/query/text`, {
+    const res = await fetch(`/api/query/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, language }),
@@ -109,7 +109,7 @@ export async function queryText(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error(`Unable to connect to backend server (tried ${BASE || "default proxy"}). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
+        throw new Error(`Unable to connect to backend server (proxied via /api/query/text). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
       }
       throw err;
     }
@@ -118,7 +118,7 @@ export async function queryText(
 }
 
 export async function checkHealth(): Promise<HealthResponse> {
-  const res = await fetch(`${BASE}/api/health`, { cache: "no-store" });
+  const res = await fetch(`/api/health`, { cache: "no-store" });
   return handleResponse<HealthResponse>(res);
 }
 
