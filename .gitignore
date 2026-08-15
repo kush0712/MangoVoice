@@ -30,8 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,23 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Large data files — too big for GitHub
+data/lancedb/
+data/fastembed_cache/
+data/raw_passages.jsonl
+data/raw_passages_with_seeds.jsonl
+data/raw_passages_with_seeds_bak.jsonl
+
+# Keep these checked in (small, important for reproducibility)
+!data/seed_passages.jsonl
+!data/val_passages.jsonl
+!data/manifest.json
+!reports/

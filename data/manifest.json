@@ -1,0 +1,12 @@
+{
+  "dataset": "ai4bharat/MSMARCO-XI",
+  "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "chunking_strategy": "parent_child",
+  "index_path": "data/lancedb",
+  "table_name": "chunks",
+  "total_passages": 5053,
+  "total_chunks": 5453,
+  "indexed_rows": 5453,
+  "vector_dim": 384,
+  "index_type": "IVF_PQ + BM25"
+}

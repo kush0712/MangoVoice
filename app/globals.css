@@ -1,26 +1,315 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* ── Brand colors ────────────────────────────────────────────────────── */
+  --color-forest:       #1E4A2B;
+  --color-forest-light: #2C663D;
+  --color-forest-dark:  #15361F;
+  --color-sunshine:     #F9E24C;
+  --color-sunshine-gold:#E5CE34;
+  --color-hibiscus:     #EA337F;
+  --color-hibiscus-dark:#C41F65;
+  --color-cream:        #FEFBEA;
+  --color-cream-card:   #FAF7DE;
+  --color-ink:          #1A1A17;
+  --color-muted-fill:   #D8D5C7;
+  --color-muted-text:   #827F77;
+  --color-lime:         #8FC93A;
+  --color-sand:         #E8DFB8;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* ── Border radius ───────────────────────────────────────────────────── */
+  --radius-card: 28px;
+  --radius-tag:  12px;
+  --radius-pill: 999px;
+  --radius-sm:   6px;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* ── Fonts ───────────────────────────────────────────────────────────── */
+  --font-fatface: var(--font-fatface), 'Abril Fatface', serif;
+  --font-display: var(--font-display), 'Bodoni Moda', 'Playfair Display', serif;
+  --font-mono:    var(--font-mono), 'Space Mono', monospace;
+  --font-hindi:   var(--font-devanagari), 'Yatra One', cursive;
+
+  /* ── Animations ──────────────────────────────────────────────────────── */
+  --animate-spin-slow: spin 14s linear infinite;
+  --animate-spin-reverse: spinReverse 18s linear infinite;
+  --animate-pulse-slow: pulse 3s ease-in-out infinite;
+  --animate-float: float 4s ease-in-out infinite;
+  --animate-wave: wave 1.2s ease-in-out infinite;
+
+  @keyframes spinReverse {
+    from { transform: rotate(360deg); }
+    to   { transform: rotate(0deg); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%      { transform: translateY(-6px); }
+  }
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.25); }
+    50%      { transform: scaleY(1); }
   }
 }
 
+/* ── Base Styles ────────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #1E4A2B;
+  color: #FEFBEA;
+  font-family: var(--font-mono), monospace;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Authentic paper grain / canvas texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── Typography Classes ─────────────────────────────────────────────────── */
+.font-hhg-title {
+  font-family: var(--font-display), 'Bodoni Moda', Georgia, serif;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.font-hhg-fat {
+  font-family: var(--font-fatface), 'Abril Fatface', serif;
+  letter-spacing: -0.01em;
+}
+
+.font-hhg-devanagari {
+  font-family: var(--font-hindi), 'Yatra One', cursive;
+}
+
+.font-hhg-mono {
+  font-family: var(--font-mono), 'Space Mono', monospace;
+}
+
+/* ── Hard Drop Shadows (HH Goa Signature) ────────────────────────────────── */
+.shadow-hhg-card {
+  box-shadow: 8px 10px 0px rgba(0, 0, 0, 0.35);
+}
+
+.shadow-hhg-card-hover {
+  box-shadow: 12px 14px 0px rgba(0, 0, 0, 0.4);
+}
+
+.shadow-hhg-btn {
+  box-shadow: 3px 4px 0px rgba(0, 0, 0, 0.3);
+}
+
+.shadow-hhg-text {
+  text-shadow: 3px 4px 0px rgba(0, 0, 0, 0.4);
+}
+
+.shadow-hhg-text-gold {
+  text-shadow: 3px 3px 0px #15361F;
+}
+
+.shadow-hhg-pink-glow {
+  text-shadow: 0 0 12px rgba(234, 51, 127, 0.8), 0 0 24px rgba(234, 51, 127, 0.4);
+}
+
+/* ── Cream Paper Cards ──────────────────────────────────────────────────── */
+.card-cream {
+  background-color: #FEFBEA;
+  color: #1A1A17;
+  border-radius: 28px;
+  border: 2px solid #E8DFB8;
+  box-shadow: 8px 10px 0px rgba(0, 0, 0, 0.3);
+}
+
+.card-pinned {
+  background-color: #FEFBEA;
+  color: #1A1A17;
+  border-radius: 20px;
+  border: 2px solid #E8DFB8;
+  box-shadow: 6px 8px 0px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-pinned:hover {
+  transform: translateY(-3px) rotate(0deg) !important;
+  box-shadow: 8px 12px 0px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Signature HH Goa Buttons ────────────────────────────────────────────── */
+.btn-hhg-pink {
+  background-color: #EA337F;
+  color: #FFFFFF;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  border: none;
+  box-shadow: 3px 4px 0px rgba(0, 0, 0, 0.25);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.btn-hhg-pink:hover {
+  background-color: #C41F65;
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 6px 0px rgba(0, 0, 0, 0.35);
+}
+.btn-hhg-pink:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 2px 0px rgba(0, 0, 0, 0.2);
+}
+
+.btn-hhg-yellow {
+  background-color: #F9E24C;
+  color: #1E4A2B;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  border: none;
+  box-shadow: 3px 4px 0px rgba(0, 0, 0, 0.25);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.btn-hhg-yellow:hover {
+  background-color: #E5CE34;
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 6px 0px rgba(0, 0, 0, 0.35);
+}
+.btn-hhg-yellow:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 2px 0px rgba(0, 0, 0, 0.2);
+}
+
+.btn-hhg-outline-pink {
+  background-color: transparent;
+  color: #EA337F;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.75rem 1.75rem;
+  border-radius: 999px;
+  border: 2px solid #EA337F;
+  box-shadow: 3px 4px 0px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.btn-hhg-outline-pink:hover {
+  background-color: #EA337F;
+  color: #FFFFFF;
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 6px 0px rgba(0, 0, 0, 0.25);
+}
+.btn-hhg-outline-pink:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 2px 0px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Patterned Apply Button (Screenshot 1 & 11) ─────────────────────────── */
+.btn-hhg-textile {
+  background: #F9E24C;
+  color: #1E4A2B;
+  font-family: var(--font-display), serif;
+  font-weight: 900;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.5rem 1.75rem;
+  border: 4px solid transparent;
+  border-image: repeating-linear-gradient(
+    45deg,
+    #EA337F 0px,
+    #EA337F 6px,
+    #8FC93A 6px,
+    #8FC93A 12px,
+    #F9E24C 12px,
+    #F9E24C 18px,
+    #1E4A2B 18px,
+    #1E4A2B 24px
+  ) 4;
+  box-shadow: 4px 6px 0px rgba(0, 0, 0, 0.35);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.btn-hhg-textile:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 8px 0px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Pipeline Chevron ────────────────────────────────────────────────────── */
+.chevron-stage {
+  position: relative;
+  background: #1E4A2B;
+  color: #FEFBEA;
+  padding: 0.75rem 1.5rem 0.75rem 1.75rem;
+  clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%, 14px 50%);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: all 0.2s ease;
+}
+.chevron-stage:first-child {
+  clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%);
+  padding-left: 1.25rem;
+}
+.chevron-stage.pink {
+  background: #EA337F;
+  color: #FFFFFF;
+}
+.chevron-stage.active {
+  background: #F9E24C;
+  color: #1E4A2B;
+  box-shadow: 0 0 16px rgba(249, 226, 76, 0.6);
+  transform: scale(1.04);
+  z-index: 10;
+}
+.chevron-stage.done {
+  background: #2C663D;
+  color: #FEFBEA;
+  opacity: 0.9;
+}
+
+/* ── Custom Scrollbars ──────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #15361F;
+}
+::-webkit-scrollbar-thumb {
+  background: #F9E24C;
+  border-radius: 4px;
+  border: 2px solid #15361F;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #EA337F;
 }
