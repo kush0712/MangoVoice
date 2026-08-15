@@ -14,8 +14,8 @@ INDEX_PATH="${DATA_DIR}/lancedb"
 FASTEMBED_CACHE="${DATA_DIR}/fastembed_cache"
 LOCK_FILE="${DATA_DIR}/.index_ready"
 
-# GitHub Releases download URL for the pre-built index tarball
-INDEX_URL="https://github.com/kush0712/MangoVoice/releases/download/v1.0.0-index/mangovoice-index.tar.gz"
+# GitHub Releases download URL for the pre-built index tarball (v2 to bypass GitHub CDN cache)
+INDEX_URL="https://github.com/kush0712/MangoVoice/releases/download/v1.0.0-index/mangovoice-index-v2.tar.gz"
 
 echo "=== MangoVoice Startup ==="
 echo "DATA_DIR=$DATA_DIR  PORT=$PORT"
@@ -35,9 +35,11 @@ if [ ! -f "$LOCK_FILE" ]; then
         sleep 3  # brief pause for uvicorn to bind the port
         echo ">>> [BG] Streaming and extracting pre-built LanceDB index directly..."
 
-        # Clean any partial failed extractions
+        # FREE DISK SPACE: Clean any failed extractions AND the old tarball from the first attempt
         rm -rf "$INDEX_PATH"
-
+        rm -f "${DATA_DIR}/index.tar.gz"
+        rm -f "${DATA_DIR}/mangovoice-index.tar.gz"
+        
         # Stream directly from curl to tar (uses 0 extra temp disk space!)
         curl -sSL --retry 5 --retry-delay 3 "$INDEX_URL" | tar -xzf - -C "$DATA_DIR"
 
