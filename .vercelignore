@@ -1,0 +1,33 @@
+# Vercel only hosts the Next.js frontend.
+# The Python FastAPI backend runs on Railway — exclude it entirely from Vercel.
+
+# Python backend source
+api/
+backend/
+ingestion/
+
+# Python dependencies (Railway handles these via Docker)
+requirements.txt
+requirements-dev.txt
+Dockerfile
+startup.sh
+railway.json
+*.sh
+
+# Data & model files (large, not needed on Vercel)
+data/
+models/
+
+# Python runtime artifacts
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg/
+dist/
+
+# Dev/test
+tests/
+notebooks/
+reports/
