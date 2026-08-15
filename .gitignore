@@ -48,11 +48,11 @@ __pycache__/
 *.pyo
 *.egg-info/
 
-# Large data files — too big for GitHub
+# Large data files — keep raw_passages_with_seeds.jsonl (Railway needs it to build the index)
 data/lancedb/
 data/fastembed_cache/
 data/raw_passages.jsonl
-data/raw_passages_with_seeds.jsonl
+# data/raw_passages_with_seeds.jsonl  <-- intentionally committed for Railway startup
 data/raw_passages_with_seeds_bak.jsonl
 
 # Keep these checked in (small, important for reproducibility)

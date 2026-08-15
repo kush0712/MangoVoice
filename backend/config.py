@@ -11,7 +11,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env.local",
+        # Accept .env.local for local dev; in production (Railway) env vars are
+        # injected directly — pydantic-settings reads them without a file.
+        env_file=(".env.local", ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -29,7 +31,10 @@ class Settings(BaseSettings):
     sarvam_mode: str = "codemix"
 
     # ── Index / data ─────────────────────────────────────────────────────────
+    # startup.sh exports INDEX_PATH pointing to Railway persistent volume;
+    # falls back to local path for development.
     index_path: str = "data/lancedb"
+    fastembed_cache_dir: str = "data/fastembed_cache"
     index_version: str = "v1"
     index_table: str = "chunks"
 
@@ -59,6 +64,11 @@ class Settings(BaseSettings):
     embedding_cache_size: int = 256
     retrieval_cache_size: int = 128
 
+    # ── CORS ─────────────────────────────────────────────────────────────────
+    # Comma-separated list of allowed origins, e.g. https://mangovoice.vercel.app
+    # Defaults to "*" for development. Set via ALLOWED_ORIGINS env var in production.
+    allowed_origins: str = "*"
+
     # ── Misc ─────────────────────────────────────────────────────────────────
     app_env: str = "development"
     log_level: str = "INFO"
@@ -75,6 +85,13 @@ class Settings(BaseSettings):
     @property
     def has_groq_key(self) -> bool:
         return bool(self.groq_api_key)
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Parse ALLOWED_ORIGINS into a list."""
+        if self.allowed_origins == "*":
+            return ["*"]
+        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
 
 @lru_cache(maxsize=1)

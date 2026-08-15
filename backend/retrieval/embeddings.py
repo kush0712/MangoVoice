@@ -34,7 +34,7 @@ class MultilingualEmbedder:
             self._model = TextEmbedding(
                 model_name=settings.embedding_model,
                 max_length=512,
-                cache_dir="data/fastembed_cache",
+                cache_dir=settings.fastembed_cache_dir,
             )
             self._ready = True
             logger.info("Embedding model loaded: %s", settings.embedding_model)
