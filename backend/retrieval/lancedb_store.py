@@ -70,6 +70,7 @@ class LanceDBStore:
             results = (
                 self._table.search(query_vec.tolist())
                 .metric("cosine")
+                .nprobes(32)   # probe 32/~63 partitions — higher recall at 63k scale
                 .limit(top_k)
                 .to_list()
             )

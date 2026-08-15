@@ -2,7 +2,7 @@
 MangoVoice — Guardrail system (4 layers).
 
 Layer 1: deterministic normalization + injection phrase detection (free, fast)
-Layer 2: Groq Prompt Guard 2 / Llama Guard 3 (parallel with retrieval)
+Layer 2: Groq Llama Guard 4 safety classification (parallel with retrieval)
 Layer 3: full safety classifier (only on suspicious input)
 Layer 4: grounding verifier lives in grounding.py
 
@@ -111,8 +111,9 @@ def layer1_check(text: str) -> GuardrailResult:
 
 async def layer2_prompt_guard(text: str) -> GuardrailResult:
     """
-    Groq Llama Guard 3 / Prompt Guard check.
+    Groq Llama Guard 4 safety classification.
     Runs in parallel with retrieval. Skipped if Groq key unavailable.
+    Model: llama-guard-4-12b (replaces deprecated llama-guard-3-8b).
     """
     if not settings.has_groq_key:
         return GuardrailResult(passed=True, message="Safety check skipped (no GROQ key)")

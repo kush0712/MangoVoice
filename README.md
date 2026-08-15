@@ -142,7 +142,7 @@ Dense handles semantic paraphrases; BM25 handles exact names, numbers, acronyms.
 | Layer | What it does | When |
 |-------|-------------|------|
 | **L1 Deterministic** | Unicode normalize, length cap, injection phrase regex | Every query, free |
-| **L2 Prompt Guard** | Groq Llama Guard 3 classification | Parallel with retrieval |
+| **L2 Prompt Guard** | Groq Llama Guard 4 (llama-guard-4-12b) classification | Parallel with retrieval |
 | **L3 Confidence Gate** | top_score + margin + support count + dense/BM25 agreement | After retrieval |
 | **L4 Grounding Verifier** | Sentence similarity + entity/number overlap vs. cited evidence | After generation |
 
