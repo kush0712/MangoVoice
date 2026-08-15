@@ -12,15 +12,16 @@ MangoVoice is a voice-first, grounded RAG system over [`ai4bharat/MSMARCO-XI`](h
 
 ## 1. What it does
 
-1. 🎙 Press the microphone — speak in Hindi, English, or Hinglish
-2. 📝 Sarvam Saaras v3 transcribes your speech
-3. 🔎 LanceDB hybrid retrieval (dense ANN + BM25 + RRF) finds evidence
-4. 🛡 4-layer guardrail system checks safety and confidence
-5. 🧠 Groq (llama-3.1-8b-instant) generates a grounded answer using a tool-contract
-6. ⚡ Grounding verifier ensures every claim is supported by cited evidence
-7. ✅ You see the answer + sources + latency breakdown
+1. 🎙 Press the microphone — speak in Hindi, English, or Hinglish (or type a query directly in text mode)
+2. 📝 Sarvam Saaras v3 transcribes your speech (auto language detection: `unknown` mode enables codemix)
+3. 🔎 LanceDB hybrid retrieval (dense ANN + BM25 + RRF) finds evidence — dense and BM25 run concurrently in a thread pool
+4. 🛡 4-layer guardrail system checks safety and confidence at every stage
+5. 🧠 Groq (llama-3.1-8b-instant) generates a grounded answer using a strict tool-contract (`answer_from_context` / `refuse`)
+6. ⚡ Grounding verifier ensures every claim is supported by cited evidence (sentence cosine sim + entity/number overlap)
+7. 🔊 Sarvam Bulbul v2 TTS reads the answer aloud in the detected language (Hindi/English)
+8. ✅ You see the answer + cited sources + per-stage latency breakdown
 
-If the system can't find sufficient evidence → it **refuses to answer**.
+If the system can't find sufficient evidence → it **refuses to answer** with a specific reason, never hallucinates.
 
 ---
 
@@ -34,48 +35,98 @@ If the system can't find sufficient evidence → it **refuses to answer**.
 ## 3. Architecture
 
 ```
-Browser (Next.js)
-  ↓ audio blob
-FastAPI Python API (/api/query)
-  ├── Sarvam Saaras v3 STT
-  ├── Input normalization + Layer 1 guardrail
+Browser (Next.js on Vercel)
+  │  voice: audio blob  OR  text: demo query
+  │  /api/* proxied via next.config.ts → Railway backend
+  ▼
+FastAPI Python API on Railway (Docker)
+  │
+  ├── [VOICE PATH] Sarvam Saaras v3 STT (REST, auto language detection)
+  │       └── 1 retry on transient network error, hard timeout 12s
+  │
+  ├── Input normalization (Unicode NFC, collapse whitespace, strip control chars)
+  │
+  ├── Layer 1 guardrail (deterministic, ~0ms)
+  │       ├── Length cap (max 1000 chars)
+  │       ├── Injection phrase regex (jailbreak/DAN/override patterns)
+  │       └── Unsafe content regex (CSAM, weapons, self-harm, hacking)
+  │
   ├── [PARALLEL] Layer 2 safety + Hybrid retrieval
-  │     ├── FastEmbed/ONNX dense embedding
-  │     ├── LanceDB ANN dense search (top-20)
-  │     ├── LanceDB BM25 FTS search (top-20)
-  │     └── RRF fusion → top-8
-  ├── Confidence gate (calibrated threshold)
-  ├── Groq generation (answer_from_context / refuse tool contract)
-  ├── Grounding verifier (sentence similarity + entity overlap)
-  └── Structured Pydantic response
+  │     ├── L2: Groq Llama Prompt Guard 2 (meta-llama/llama-prompt-guard-2-86m)
+  │     │       timeout 3s, fail-open (L1 already ran)
+  │     └── Retrieval:
+  │           ├── FastEmbed/ONNX query embedding (LRU-cached, ~2.8ms P50)
+  │           ├── LanceDB dense ANN search top-20  ┐ run concurrently
+  │           ├── LanceDB BM25 FTS search top-20   ┘ via asyncio thread pool
+  │           └── RRF fusion (k=60) → top-8 final candidates
+  │
+  ├── Layer 3 — Confidence gate
+  │       ├── Primary signal: raw cosine similarity of top dense result (not tiny RRF score)
+  │       ├── Cross-modal bonus: dense + BM25 agree on top chunk (+20%)
+  │       ├── Count bonus: number of candidates / 10 (+10% max)
+  │       └── Composite threshold: confidence_low_threshold = 0.18
+  │
+  ├── Groq generation (llama-3.1-8b-instant, tool_choice=required)
+  │       ├── System prompt enforces evidence-only grounded answers
+  │       ├── Tool contract: answer_from_context(answer, cited_chunk_ids, confidence)
+  │       │                  OR refuse(reason)
+  │       ├── temperature=0.1, max_tokens=512, timeout=8s
+  │       └── 1 retry on transient 5xx via Tenacity
+  │
+  ├── Layer 4 — Grounding verifier
+  │       ├── A. Citation existence: cited_chunk_ids ∩ retrieved_ids must be non-empty
+  │       ├── B. Sentence-level cosine similarity (answer sentences vs cited evidence, threshold 0.35)
+  │       ├── C. Entity/number overlap (capitalized tokens + numbers in answer vs evidence)
+  │       ├── Final score: 0.7 × avg_sentence_sim + 0.3 × entity_overlap ≥ 0.40 to pass
+  │       └── If fails → 1 strict regeneration attempt → if still fails → refuse
+  │
+  └── Structured Pydantic v2 response (QueryResponse)
+        answer, transcript, language, confidence, sources, grounding_score, latency{per-stage}
 ```
 
 ---
 
-## 4. Technology Stack
+## 4. API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/health` | Backend readiness check — returns index + embedder status |
+| `POST` | `/api/query` | **Main endpoint.** Accepts `audio` (file upload) + `language` form field. Full voice RAG pipeline. |
+| `POST` | `/api/query/text` | Text-only query (demo mode / no microphone). Body: `{"text": "...", "language": "auto"}` |
+| `POST` | `/api/tts` | Text-to-speech via **Sarvam Bulbul v2**. Body: `{"text": "...", "language": "hi-IN"|"en-IN"|"auto"}`. Auto-detects from Devanagari script. Returns base64 WAV. |
+
+The frontend uses all four endpoints: health polling (30s interval), audio query, demo text query, and TTS playback after answers.
+
+---
+
+## 5. Technology Stack
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Frontend | Next.js 16 + TypeScript | Vercel native |
+| Frontend | Next.js 16 + TypeScript | Vercel native, RSC |
 | Styling | Tailwind CSS v4 | Design system from design.md |
-| Voice Input | Web Audio API + MediaRecorder | Browser-native |
-| VAD | Client-side amplitude detection | No external SDK |
-| STT | **Sarvam Saaras v3** REST | Indic-first, codemix support |
-| Embeddings | **FastEmbed + ONNX** | Local, zero API cost |
-| Embedding model | `paraphrase-multilingual-MiniLM-L12-v2` | 384-dim multilingual |
+| Voice Input | Web Audio API + MediaRecorder | Browser-native, no SDK |
+| Audio format detection | Header-byte sniff (WAV/WebM/OGG/MP4/AAC) | Cross-browser compatibility |
+| VAD | Client-side amplitude detection + silence timeout (2.5s) | No external SDK |
+| STT | **Sarvam Saaras v3** REST (`saaras:v3`) | Indic-first, codemix support |
+| TTS | **Sarvam Bulbul v2** REST (`bulbul:v2`, speaker=anushka) | Authentic Indic voice |
+| Embeddings | **FastEmbed + ONNX** | Local, zero API cost, LRU-cached |
+| Embedding model | `paraphrase-multilingual-MiniLM-L12-v2` | 384-dim, Hindi/English/Hinglish |
 | Vector DB | **LanceDB OSS embedded** | Local, BM25+ANN, zero cost |
-| Hybrid search | Dense + BM25 + RRF (k=60) | Best of semantic + lexical |
+| Hybrid search | Dense ANN top-20 + BM25 top-20 + RRF (k=60) → top-8 | Best of semantic + lexical |
 | Generation | **Groq llama-3.1-8b-instant** | Fast, free tier |
-| Output format | Tool-contract (answer/refuse) | Structured, refusal-first |
-| Schemas | Pydantic v2 | Every stage typed |
-| Retries | Tenacity | Bounded, never infinite |
-| Backend | FastAPI + uvicorn | Async, high performance |
+| Safety model | **Groq meta-llama/llama-prompt-guard-2-86m** | Dedicated prompt guard |
+| Output format | Tool-contract (`answer_from_context` / `refuse`) | Structured, refusal-first |
+| Schemas | Pydantic v2 | Every stage typed, no raw dicts |
+| Retries | Tenacity | Bounded (max 2 attempts), never infinite |
+| Backend | FastAPI + uvicorn + orjson | Async, high performance |
+| Config | pydantic-settings (env vars / `.env.local`) | 12-factor compliant |
 | Frontend hosting | **Vercel Hobby** | Free, Next.js-native CI/CD |
 | Backend hosting | **Railway** (Docker) | Persistent RAM for 800MB index |
 
 ---
 
-## 5. Dataset
+## 6. Dataset
 
 `ai4bharat/MSMARCO-XI` — multilingual MSMARCO with Indic translations.
 
@@ -89,21 +140,21 @@ FastAPI Python API (/api/query)
 
 ---
 
-## 6. Five Chunking Strategies
+## 7. Five Chunking Strategies
 
 | Strategy | Description | Purpose |
 |----------|-------------|---------|
 | **A — Canonical** | Original passage as-is | Strong baseline |
-| **B — Sentence Windows** | 2-sentence windows, 1-overlap | Better short-fact precision |
-| **C — Fixed Token** | 128-token windows, 32 overlap | Naive control |
-| **D — Semantic Splitting** | Cosine similarity breakpoints | Topic-coherent chunks |
-| **E — Parent-Child** | Parent ~350 tok, child ~100 tok | **Production default** |
+| **B — Sentence Windows** | 2-sentence windows, 1-sentence overlap. Devanagari danda (।) aware. | Better short-fact precision |
+| **C — Fixed Token** | 128-token windows, 32 overlap (word-level tokenization) | Naive control |
+| **D — Semantic Splitting** | Cosine similarity breakpoints (threshold 0.75) between adjacent sentences. Falls back to B if embedder unavailable. | Topic-coherent chunks |
+| **E — Parent-Child** | Parent ~400 tok (overlap 1/4), child ~100 tok (overlap 20 tok). Retrieval searches children; generation receives parent context. | **Production default** |
 
 Production strategy selected from measured evaluation results. See `reports/chunking_results.csv`.
 
 ---
 
-## 7. Chunking Evaluation Results
+## 8. Chunking Evaluation Results
 
 Evaluated over MSMARCO-XI validation queries against the indexed multilingual passage corpus (`reports/chunking_results.csv`):
 
@@ -121,12 +172,11 @@ Parent-Child (prod)    0.170  0.240  0.114   3.0 ms
 
 ---
 
-## 8. Hybrid Retrieval
+## 9. Hybrid Retrieval
 
 ```
-Dense top-20 (cosine ANN)
-+
-BM25 top-20 (FTS)
+Dense top-20 (cosine ANN)  ┐  run concurrently via
+BM25 top-20 (FTS)          ┘  asyncio.get_event_loop().run_in_executor()
    ↓
 Deduplicate by chunk_id
    ↓
@@ -137,34 +187,37 @@ Top-8 final evidence candidates
 
 Dense handles semantic paraphrases; BM25 handles exact names, numbers, acronyms.
 
----
-
-## 9. Guardrails (4 layers)
-
-| Layer | What it does | When |
-|-------|-------------|------|
-| **L1 Deterministic** | Unicode normalize, length cap, injection phrase regex | Every query, free |
-| **L2 Prompt Guard** | Groq Llama Guard 4 (meta-llama/llama-prompt-guard-2-86m) classification | Parallel with retrieval |
-| **L3 Confidence Gate** | top_score + margin + support count + dense/BM25 agreement | After retrieval |
-| **L4 Grounding Verifier** | Sentence similarity + entity/number overlap vs. cited evidence | After generation |
-
-The system **refuses** at every gate. Refusal is a first-class outcome, not an afterthought.
+**Confidence scoring** is driven by the raw cosine similarity of the top dense result (preserved in `raw_dense_score` before RRF overwrites `.score`), NOT the tiny RRF scores (which are always near 0.016 by design and carry no absolute relevance signal).
 
 ---
 
-## 10. Latency Methodology
+## 10. Guardrails (4 layers)
+
+| Layer | What it does | Threshold / Model |
+|-------|-------------|-------------------|
+| **L1 Deterministic** | Unicode NFC normalize + length cap (1000 chars) + 15-pattern injection regex + unsafe content regex | ~0ms, every query |
+| **L2 Prompt Guard** | Groq `meta-llama/llama-prompt-guard-2-86m` classification | Parallel with retrieval, timeout 3s, fail-open |
+| **L3 Confidence Gate** | `confidence = 0.70 × norm_dense_sim + 0.20 × cross_modal_agree + 0.10 × count_bonus`. Threshold: 0.18. Borderline: requires cross-modal agreement + ≥2 sources. | After retrieval |
+| **L4 Grounding Verifier** | Citation existence + sentence cosine sim (≥0.35) + entity/number overlap. Final: `0.7×sim + 0.3×overlap ≥ 0.40`. 1 strict regeneration on fail. | After generation |
+
+The system **refuses** at every gate. Refusal is a first-class outcome, not an afterthought.  
+`RefusalReason` enum covers: `low_confidence`, `safety_violation`, `unsafe_input`, `prompt_injection`, `no_evidence`, `grounding_failed`, `stt_failed`, `generation_unavailable`, `timeout`.
+
+---
+
+## 11. Latency Methodology
 
 **RAG Core** = transcript_ready → embedding → retrieval → safety → generation → grounding → response  
-Target: **< 200 ms**
+Target: **< 200 ms** (local subsystems excluding network STT and LLM)
 
 **Full Voice E2E** = mic → Sarvam STT → RAG Core  
-Expected: higher (STT is a network round-trip)
+Expected: higher (STT is a network round-trip, ~300-800ms typical)
 
-Both reported separately, never combined.
+Both reported separately in `LatencyMetrics` (per-stage: `stt_ms`, `embedding_ms`, `retrieval_ms`, `safety_ms`, `generation_ms`, `grounding_ms`, `rag_core_ms`, `full_e2e_ms`), never combined.
 
 ---
 
-## 11. P50 / P70 / P100 Results
+## 12. P50 / P70 / P100 Results
 
 Measured over validation queries via `evaluation/latency_benchmark.py` (`reports/latency_results.json`):
 
@@ -190,14 +243,16 @@ Answer Rate: **98.0%** | Refusal Rate: **2.0%** (Low evidence queries properly r
 
 ---
 
-## 12. Cost
+## 13. Cost
 
 | Component | Cost |
 |-----------|------|
 | Sarvam Saaras v3 STT | **Paid** |
+| Sarvam Bulbul v2 TTS | **Paid** |
 | FastEmbed embeddings | $0 (local ONNX) |
 | LanceDB vector DB | $0 (embedded) |
-| Groq llama-3.1-8b-instant | $0 (free tier) |
+| Groq llama-3.1-8b-instant (generation) | $0 (free tier) |
+| Groq llama-prompt-guard-2-86m (safety) | $0 (free tier) |
 | Vercel Hobby (frontend) | $0 |
 | Railway (backend Docker) | ~$5/mo hobby plan |
 | GitHub Releases (index storage) | $0 |
@@ -205,14 +260,15 @@ Answer Rate: **98.0%** | Refusal Rate: **2.0%** (Low evidence queries properly r
 
 ---
 
-## 13. Local Setup
+## 14. Local Setup
 
 ### Frontend
 
 ```bash
 cd mangovoice
 cp .env.example .env.local
-# Edit .env.local with your API keys
+# Edit .env.local — set SARVAM_API_KEY, GROQ_API_KEY
+# NEXT_PUBLIC_API_BASE is NOT needed locally (next.config.ts auto-proxies to 127.0.0.1:8000)
 npm install
 npm run dev
 ```
@@ -221,6 +277,7 @@ npm run dev
 
 ```bash
 pip install -r requirements.txt
+# Run uvicorn from the mangovoice/ root so api/index.py can import backend.*
 uvicorn api.index:app --reload --port 8000
 ```
 
@@ -249,7 +306,7 @@ python -m evaluation.latency_benchmark --n 500
 
 ---
 
-## 14. Deployment Architecture
+## 15. Deployment Architecture
 
 Vercel's Serverless Functions have a **250MB size limit** — the LanceDB index alone is ~800MB. The solution is a split-deploy:
 
@@ -266,23 +323,20 @@ Railway (FastAPI + Docker)           ← internal Railway URL
 
 ### Frontend — Vercel
 
-- **What:** Next.js 16 app (UI, voice recording, results display)
+- **What:** Next.js 16 app (UI, voice recording, demo text queries, TTS playback, results display, live pipeline status)
 - **Config:** [`vercel.json`](vercel.json) — `{ "framework": "nextjs" }`
 - **Python excluded:** [`.vercelignore`](.vercelignore) excludes the entire `api/` and `backend/` Python tree so Vercel never tries to bundle it
-- **Proxy routing:** [`next.config.ts`](next.config.ts) rewrites `/api/*` → `$NEXT_PUBLIC_API_BASE/api/*` (Railway URL), so the browser never makes a cross-origin request — CORS is a non-issue
-- **Env var needed:** `NEXT_PUBLIC_API_BASE=https://<your-railway-service>.railway.app`
+- **Proxy routing:** [`next.config.ts`](next.config.ts) rewrites `/api/*` → `$NEXT_PUBLIC_API_BASE/api/*` (Railway URL). The browser never makes a cross-origin request — CORS is a non-issue. In local dev, falls back to `http://127.0.0.1:8000` automatically (no env var needed).
+- **Env var needed on Vercel:** `NEXT_PUBLIC_API_BASE=https://<your-railway-service>.railway.app`
 
 ### Backend — Railway
 
-- **What:** FastAPI + uvicorn serving the RAG pipeline
+- **What:** FastAPI + uvicorn serving the full RAG pipeline (STT → guardrails → retrieval → generation → grounding → TTS)
 - **Config:** [`railway.json`](railway.json) — tells Railway to build via `Dockerfile` and start with `startup.sh`
 - **Docker strategy:** [`Dockerfile`](Dockerfile) **bakes the LanceDB index directly into the image** at build time by downloading from GitHub Releases (`v1.0.0-index`). This completely bypasses Railway's volume disk limits (was hitting "No space left on device" with runtime downloads)
 - **Startup:** [`startup.sh`](startup.sh) — simply starts uvicorn; no runtime download needed since index is already in `/app/data/lancedb`
 - **Env vars needed on Railway:** `SARVAM_API_KEY`, `GROQ_API_KEY`
-
-### Local Development
-
-In local dev, `next.config.ts` proxies `/api/*` → `http://127.0.0.1:8000` automatically (no env var needed).
+- **Optional:** `ALLOWED_ORIGINS` (comma-separated, default `*`)
 
 ### Why not Vercel Serverless for the backend?
 
@@ -295,21 +349,22 @@ In local dev, `next.config.ts` proxies `/api/*` → `http://127.0.0.1:8000` auto
 
 ---
 
-## 15. Limitations
+## 16. Limitations
 
 - STT latency (Sarvam REST round-trip) is not part of the 200ms RAG core target — it is always reported separately
-- Cold starts on serverless may add 1-3s to first request
+- Railway Docker container has a cold start on first deploy (~60-90s for uvicorn + embedder model load)
 - BM25 performance on Devanagari script may be lower than English; dense retrieval compensates
 - Free Groq quota may rate-limit under heavy concurrent traffic — system will refuse cleanly rather than hallucinate
+- TTS is limited to 500 chars per request (Sarvam API limit)
 
 ---
 
-## 16. Future Work
+## 17. Future Work
 
 - WebSocket streaming STT for real-time transcription
 - All 14 MSMARCO-XI Indic languages
-- Voice output via Sarvam TTS
 - Retrieval analytics dashboard with live P50/P70/P100
+- Query caching layer for repeated questions
 
 ---
 
