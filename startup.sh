@@ -4,7 +4,6 @@
 # Strategy:
 #   1. Start uvicorn IMMEDIATELY (health check passes right away)
 #   2. In BACKGROUND: stream pre-built LanceDB index from GitHub Releases directly to tar
-#      (Zero intermediate disk usage, no OOM, clean unpack)
 
 set -e
 
@@ -14,7 +13,6 @@ INDEX_PATH="${DATA_DIR}/lancedb"
 FASTEMBED_CACHE="${DATA_DIR}/fastembed_cache"
 LOCK_FILE="${DATA_DIR}/.index_ready"
 
-# GitHub Releases download URL for the pre-built index tarball (v2 to bypass GitHub CDN cache)
 INDEX_URL="https://github.com/kush0712/MangoVoice/releases/download/v1.0.0-index/mangovoice-index-v2.tar.gz"
 
 echo "=== MangoVoice Startup ==="
@@ -33,18 +31,26 @@ if [ ! -f "$LOCK_FILE" ]; then
     echo ">>> Index not found — will download pre-built index in background."
     (
         sleep 3  # brief pause for uvicorn to bind the port
-        echo ">>> [BG] Streaming and extracting pre-built LanceDB index directly..."
+        echo ">>> [BG] Pre-extraction disk usage (checking for hidden files taking up space):"
+        df -h "$DATA_DIR"
+        du -sh "$DATA_DIR"/* 2>/dev/null || true
 
-        # FREE DISK SPACE: Clean any failed extractions AND the old tarball from the first attempt
-        rm -rf "$INDEX_PATH"
-        rm -f "${DATA_DIR}/index.tar.gz"
-        rm -f "${DATA_DIR}/mangovoice-index.tar.gz"
+        echo ">>> [BG] Aggressively wiping EVERYTHING in $DATA_DIR to free up 100% space..."
+        # Wipe EVERYTHING in the volume EXCEPT what we need
+        find "$DATA_DIR" -mindepth 1 -delete || true
+
+        echo ">>> [BG] Disk space after wipe:"
+        df -h "$DATA_DIR"
+
+        echo ">>> [BG] Streaming and extracting pre-built LanceDB index directly..."
         
-        # Stream directly from curl to tar (uses 0 extra temp disk space!)
-        curl -sSL --retry 5 --retry-delay 3 "$INDEX_URL" | tar -xzf - -C "$DATA_DIR"
+        # We suppress warnings about macOS xattrs, and stream directly
+        curl -sSL --retry 5 --retry-delay 3 "$INDEX_URL" | tar -xzf - -C "$DATA_DIR" --warning=no-unknown-keyword
 
         if [ -d "$INDEX_PATH" ]; then
             touch "$LOCK_FILE"
+            echo ">>> [BG] Final disk space:"
+            df -h "$DATA_DIR"
             echo ">>> [BG] Index ready at $INDEX_PATH — MangoVoice is fully ready!"
         else
             echo ">>> [BG] Extraction failed or index folder not found" >&2
