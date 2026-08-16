@@ -242,13 +242,13 @@ normalize → guardrails → embed → retrieve → extractive → grounding_ext
 
 Stage                          P50 (ms)   P70 (ms)   P100 (ms)  Mean (ms)
 -------------------------------------------------------------------------
-Embedding (FastEmbed)              2.8        2.9        8.0        2.9
-Retrieval (LanceDB Hybrid)         9.7       10.4       29.1       10.1
-Safety (L1 Deterministic)          0.0        0.0        0.0        0.0
-Extractive Answer                  0.0        0.0        0.1        0.0
-Grounding Extractive               0.0        0.0        0.1        0.0
+Embedding (FastEmbed)              0.01       0.01       0.04       0.01
+Retrieval (LanceDB Hybrid)         9.39      10.61      24.25      10.70
+Safety (L1 Deterministic)          0.00       0.00       0.00       0.00
+Extractive Answer                  0.43       0.45       0.52       0.43
+Grounding Extractive               0.03       0.06       0.10       0.04
 -------------------------------------------------------------------------
-RAG Core Total                    12.6       13.5       38.0       13.1
+RAG Core Total                     9.86      11.13      24.81      11.21
 -------------------------------------------------------------------------
 ```
 
