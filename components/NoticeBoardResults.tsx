@@ -58,15 +58,15 @@ export default function NoticeBoardResults({ result, isLoading }: NoticeBoardRes
           </div>
 
           <div className="card-pinned p-6 relative select-none" style={{ transform: "rotate(2deg)" }}>
-            <PushPin color="green" />
-            <div className="text-xs font-hhg-mono text-forest-light uppercase font-bold mb-2 tracking-wider">
+            <PushPin color="pink" />
+            <div className="text-xs font-hhg-mono text-hibiscus uppercase font-bold mb-2 tracking-wider">
               EVIDENCE SOURCES
             </div>
             <p className="font-hhg-mono text-sm text-ink/70 leading-relaxed">
               Inspect top chunks from LanceDB (dense + BM25) and verification scores.
             </p>
             <div className="mt-4">
-              <span className="btn-hhg-pink text-[11px] py-1 px-4 cursor-default" style={{ backgroundColor: "#FFFFFF" }}>
+              <span className="btn-hhg-pink text-[11px] py-1 px-4 cursor-default">
                 MSMARCO-XI INDEX
               </span>
             </div>
