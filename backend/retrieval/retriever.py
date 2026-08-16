@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from backend.config import settings
 from backend.schemas import RetrievalResult
@@ -18,6 +19,13 @@ from backend.retrieval.confidence import compute_retrieval_confidence
 from backend.telemetry import get_logger
 
 logger = get_logger(__name__)
+
+# Dedicated 2-worker pool for LanceDB I/O.
+# Using None (default executor) causes thread pool starvation under sequential
+# load on Railway's 1-vCPU container — P70 spikes to 700ms+.
+# A scoped pool with exactly 2 workers (dense + BM25 run concurrently) means
+# retrieval threads are never starved by other executor work in the process.
+_RETRIEVAL_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="lancedb")
 
 
 async def hybrid_retrieve(query: str) -> tuple[RetrievalResult, float]:
@@ -37,12 +45,12 @@ async def hybrid_retrieve(query: str) -> tuple[RetrievalResult, float]:
     #    to avoid blocking the event loop for large indexes)
     t_retrieve = time.perf_counter()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     dense_task = loop.run_in_executor(
-        None, store.dense_search, query_vec, settings.dense_top_k
+        _RETRIEVAL_EXECUTOR, store.dense_search, query_vec, settings.dense_top_k
     )
     bm25_task = loop.run_in_executor(
-        None, store.bm25_search, query, settings.bm25_top_k
+        _RETRIEVAL_EXECUTOR, store.bm25_search, query, settings.bm25_top_k
     )
     dense_results, bm25_results = await asyncio.gather(dense_task, bm25_task)
 
