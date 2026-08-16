@@ -13,9 +13,9 @@ export function GoaTextileRibbon() {
       >
         <pattern id="goa-textile-pattern" width="80" height="24" patternUnits="userSpaceOnUse">
           <polygon points="12,12 20,4 28,12 20,20" fill="#FF0080" />
-          <circle cx="20" cy="12" r="2.5" fill="#00FFFF" />
-          <polygon points="52,12 60,4 68,12 60,20" fill="#00FFFF" />
-          <circle cx="60" cy="12" r="2.5" fill="#00FFFF" />
+          <circle cx="20" cy="12" r="2.5" fill="#FFFFFF" />
+          <polygon points="52,12 60,4 68,12 60,20" fill="#FFFFFF" />
+          <circle cx="60" cy="12" r="2.5" fill="#FFFFFF" />
           <path d="M0 12h8 M32 12h16 M72 12h8" stroke="#FFFF00" strokeWidth="1.5" />
           <circle cx="40" cy="8" r="1.5" fill="#FFFF00" />
           <circle cx="40" cy="16" r="1.5" fill="#FFFF00" />
@@ -76,7 +76,7 @@ export function DevanagariOverlay({
 
 // ── 3D Push Pin for Notice Board (Screenshot 3) ──────────────────────────────
 export function PushPin({ color = "pink" }: { color?: "pink" | "yellow" | "green" }) {
-  const bg = color === "pink" ? "#FF0080" : color === "yellow" ? "#FFFF00" : "#00FFFF";
+  const bg = color === "pink" ? "#FF0080" : color === "yellow" ? "#FFFF00" : "#FFFFFF";
   const border = color === "pink" ? "#D10074" : color === "yellow" ? "#FFFF00" : "#000000";
 
   return (
@@ -120,7 +120,7 @@ export function GoaLeftPalmTree() {
       />
       <path
         d="M70 60 Q 95 10 140 -5 Q 115 35 70 60"
-        fill="#00FFFF"
+        fill="#FFFFFF"
         stroke="#000000"
         strokeWidth="2"
       />
@@ -132,7 +132,7 @@ export function GoaLeftPalmTree() {
       />
       <path
         d="M70 60 Q 20 15 -20 5 Q 15 45 70 60"
-        fill="#00FFFF"
+        fill="#FFFFFF"
         stroke="#000000"
         strokeWidth="2"
       />
@@ -173,7 +173,7 @@ export function GoaRightPalmTree() {
         />
         <path
           d="M70 60 Q 95 10 140 -5 Q 115 35 70 60"
-          fill="#00FFFF"
+          fill="#FFFFFF"
           stroke="#000000"
           strokeWidth="2"
         />
@@ -185,7 +185,7 @@ export function GoaRightPalmTree() {
         />
         <path
           d="M70 60 Q 20 15 -20 5 Q 15 45 70 60"
-          fill="#00FFFF"
+          fill="#FFFFFF"
           stroke="#000000"
           strokeWidth="2"
         />
@@ -222,20 +222,20 @@ export function GoaBeachScenery() {
         xmlns="http://www.w3.org/2000/svg"
         className="w-full h-auto max-h-56 mx-auto"
       >
-        <path d="M0 200 C300 180 600 220 1200 190 L1200 240 L0 240 Z" fill="#1A1A80" />
-        <path d="M0 215 C400 200 800 230 1200 210 L1200 240 L0 240 Z" fill="#1A1A80" />
+        <path d="M0 200 C300 180 600 220 1200 190 L1200 240 L0 240 Z" fill="#FFFFFF" />
+        <path d="M0 215 C400 200 800 230 1200 210 L1200 240 L0 240 Z" fill="#FFFFFF" />
         <path d="M0 170 C400 150 800 185 1200 160 L1200 200 C600 220 300 180 0 200 Z" fill="#000000" opacity="0.4" />
 
         {/* Beach Shack */}
         <g transform="translate(480, 100)">
-          <polygon points="30,0 210,0 240,40 0,40" fill="#00FFFF" stroke="#000000" strokeWidth="3" />
+          <polygon points="30,0 210,0 240,40 0,40" fill="#FFFFFF" stroke="#000000" strokeWidth="3" />
           <polygon points="40,-8 200,-8 215,0 25,0" fill="#FFFF00" stroke="#000000" strokeWidth="2" />
-          <rect x="25" y="40" width="190" height="70" fill="#00FFFF" stroke="#000000" strokeWidth="3" />
+          <rect x="25" y="40" width="190" height="70" fill="#FFFFFF" stroke="#000000" strokeWidth="3" />
           <line x1="45" y1="40" x2="45" y2="110" stroke="#000000" strokeWidth="3" />
           <line x1="195" y1="40" x2="195" y2="110" stroke="#000000" strokeWidth="3" />
           <line x1="120" y1="40" x2="120" y2="110" stroke="#000000" strokeWidth="3" />
-          <rect x="60" y="12" width="120" height="20" rx="4" fill="#FF0080" stroke="#00FFFF" strokeWidth="2" />
-          <text x="120" y="26" textAnchor="middle" fill="#00FFFF" fontSize="10" fontWeight="bold" fontFamily="monospace">
+          <rect x="60" y="12" width="120" height="20" rx="4" fill="#FF0080" stroke="#FFFFFF" strokeWidth="2" />
+          <text x="120" y="26" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="monospace">
             MANGO SHACK
           </text>
         </g>
@@ -249,7 +249,7 @@ export function GoaBeachScenery() {
 
         <g transform="translate(860, 135)">
           <path d="M10 50 A 45 45 0 0 1 90 50 Z" fill="#FFFF00" stroke="#000000" strokeWidth="2.5" />
-          <path d="M35 50 A 45 45 0 0 1 65 50 Z" fill="#00FFFF" />
+          <path d="M35 50 A 45 45 0 0 1 65 50 Z" fill="#FFFFFF" />
           <line x1="50" y1="50" x2="50" y2="85" stroke="#000000" strokeWidth="3" />
         </g>
 
@@ -260,7 +260,7 @@ export function GoaBeachScenery() {
         </g>
         <g transform="translate(200, 155) rotate(10)">
           <path d="M0 0 C10 -25 15 -25 25 0 L22 70 C12 75 8 75 0 70 Z" fill="#FFFF00" stroke="#000000" strokeWidth="2" />
-          <line x1="12" y1="-10" x2="12" y2="65" stroke="#00FFFF" strokeWidth="2" />
+          <line x1="12" y1="-10" x2="12" y2="65" stroke="#FFFFFF" strokeWidth="2" />
         </g>
       </svg>
     </div>

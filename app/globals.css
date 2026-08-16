@@ -9,13 +9,13 @@
   --color-sunshine-gold:#FFFF00;
   --color-hibiscus:     #FF0080;
   --color-hibiscus-dark:#D10074;
-  --color-cream:        #00FFFF;
-  --color-cream-card:   #1A1A80;
+  --color-cream:        #FFFFFF;
+  --color-cream-card:   #FFFFFF;
   --color-ink:          #1A1A17;
   --color-muted-fill:   #D8D5C7;
   --color-muted-text:   #827F77;
-  --color-lime:         #00FFFF;
-  --color-sand:         #1A1A80;
+  --color-lime:         #FFFFFF;
+  --color-sand:         #FFFFFF;
 
   /* ── Border radius ───────────────────────────────────────────────────── */
   --radius-card: 28px;
@@ -59,7 +59,7 @@ html {
 
 body {
   background-color: #000000;
-  color: #00FFFF;
+  color: #FFFFFF;
   font-family: var(--font-mono), monospace;
   min-height: 100vh;
   position: relative;
@@ -125,18 +125,18 @@ body::before {
 
 /* ── Cream Paper Cards ──────────────────────────────────────────────────── */
 .card-cream {
-  background-color: #00FFFF;
+  background-color: #FFFFFF;
   color: #1A1A17;
   border-radius: 28px;
-  border: 2px solid #1A1A80;
+  border: 2px solid #FFFFFF;
   box-shadow: 8px 10px 0px rgba(0, 0, 0, 0.3);
 }
 
 .card-pinned {
-  background-color: #00FFFF;
+  background-color: #FFFFFF;
   color: #1A1A17;
   border-radius: 20px;
-  border: 2px solid #1A1A80;
+  border: 2px solid #FFFFFF;
   box-shadow: 6px 8px 0px rgba(0, 0, 0, 0.25);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -246,8 +246,8 @@ body::before {
     45deg,
     #FF0080 0px,
     #FF0080 6px,
-    #00FFFF 6px,
-    #00FFFF 12px,
+    #FFFFFF 6px,
+    #FFFFFF 12px,
     #FFFF00 12px,
     #FFFF00 18px,
     #000000 18px,
@@ -266,7 +266,7 @@ body::before {
 .chevron-stage {
   position: relative;
   background: #000000;
-  color: #00FFFF;
+  color: #FFFFFF;
   padding: 0.75rem 1.5rem 0.75rem 1.75rem;
   clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%, 14px 50%);
   font-family: var(--font-mono), monospace;
@@ -293,7 +293,7 @@ body::before {
 }
 .chevron-stage.done {
   background: #000000;
-  color: #00FFFF;
+  color: #FFFFFF;
   opacity: 0.9;
 }
 

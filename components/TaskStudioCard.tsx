@@ -87,7 +87,7 @@ export default function TaskStudioCard({
               className="relative z-10 w-48 h-48 sm:w-52 sm:h-52 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-200 group select-none"
               style={{
                 backgroundColor: isListening ? "#FF0080" : "#000000",
-                border: "4px solid #00FFFF",
+                border: "4px solid #FFFFFF",
                 boxShadow: isListening
                   ? "0 0 30px rgba(255, 0, 128, 0.6), inset 0 0 20px rgba(0,0,0,0.2)"
                   : "0 8px 24px rgba(0, 0, 0, 0.4), inset 0 4px 10px rgba(255,255,255,0.15)",
@@ -97,7 +97,7 @@ export default function TaskStudioCard({
               {/* Mic Icon / State Visualizer */}
               <div className="text-cream mb-2 transition-transform group-hover:scale-110">
                 {isListening ? (
-                  <Square size={44} strokeWidth={2.5} fill="#00FFFF" className="animate-pulse" />
+                  <Square size={44} strokeWidth={2.5} fill="#FFFFFF" className="animate-pulse" />
                 ) : isProcessing ? (
                   <Loader2 size={48} strokeWidth={2.5} className="animate-spin text-sunshine" />
                 ) : (
@@ -109,7 +109,7 @@ export default function TaskStudioCard({
               <span
                 className="font-hhg-mono font-bold text-xs sm:text-sm tracking-widest uppercase"
                 style={{
-                  color: isListening ? "#00FFFF" : "#FFFF00",
+                  color: isListening ? "#FFFFFF" : "#FFFF00",
                 }}
               >
                 {isListening

@@ -16,7 +16,7 @@ const config: Config = {
         },
         sunshine: "#FFFF00",
         hibiscus: "#FF0080",
-        cream: "#00FFFF",
+        cream: "#FFFFFF",
         ink: "#1A1A17",
         muted: {
           fill: "#D8D5C7",

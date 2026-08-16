@@ -66,7 +66,7 @@ export default function NoticeBoardResults({ result, isLoading }: NoticeBoardRes
               Inspect top chunks from LanceDB (dense + BM25) and verification scores.
             </p>
             <div className="mt-4">
-              <span className="btn-hhg-pink text-[11px] py-1 px-4 cursor-default" style={{ backgroundColor: "#00FFFF" }}>
+              <span className="btn-hhg-pink text-[11px] py-1 px-4 cursor-default" style={{ backgroundColor: "#FFFFFF" }}>
                 MSMARCO-XI INDEX
               </span>
             </div>
