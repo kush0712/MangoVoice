@@ -9,7 +9,7 @@ python-multipart==0.0.20
 groq==0.13.1
 
 # Embeddings & retrieval
-fastembed==0.4.2
+fastembed==0.8.0
 lancedb>=0.17.0
 tantivy>=0.22.0
 

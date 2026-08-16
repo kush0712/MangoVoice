@@ -123,20 +123,29 @@ def extractive_fallback(
             best_source = source
 
     if best_overlap >= 1:
-        # ── Semantic Verification of Candidate Sentence ────────────────────────
+        # ── Semantic Verification (Dual Rules) ────────────────────────
         # Token overlap can be fooled by coincidences. We use the local FastEmbed 
-        # model to verify the exact extracted sentence against the query.
-        # Since embed_query caches the query, this only takes ~5-10ms.
+        # model to verify exact semantic similarity. Since embed_query caches the 
+        # query, embedding the chunk and sentence only takes ~15ms total.
         q_vec = embed_query(query)
         s_vec = embed_query(best_snippet)
+        c_vec = embed_query(best_source.text)
         
-        sim = float(np.dot(q_vec, s_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(s_vec)))
+        sent_sim = float(np.dot(q_vec, s_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(s_vec)))
+        chunk_sim = float(np.dot(q_vec, c_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(c_vec)))
         
-        # 0.55 allows cross-lingual Hinglish-to-English matches (typically ~0.56)
-        # while cleanly rejecting false keyword overlaps (typically ~0.10 - 0.50).
-        SENTENCE_SIM_THRESHOLD = 0.55
+        # Rule 1: High sentence similarity (Solves explicit direct answers)
+        # e.g. "What is the speed of light" -> "The speed of light is..."
+        passed_rule1 = sent_sim >= 0.55
         
-        if sim >= SENTENCE_SIM_THRESHOLD:
+        # Rule 2: High chunk similarity + strong keyword overlap (Solves Coreference)
+        # e.g. "What is the impact of Manhattan Project?" -> "Its impact was..."
+        # If the sentence uses pronouns ("its"), sentence sim will be low (~0.29).
+        # But if the overall chunk is semantically identical (>=0.60) AND has >= 3
+        # explicit keywords matching the query, we can safely extract the sentence.
+        passed_rule2 = chunk_sim >= 0.60 and best_overlap >= 3
+        
+        if passed_rule1 or passed_rule2:
             answer = (
                 f'Based on the retrieved evidence:\n\n'
                 f'"{best_snippet}"\n\n'
