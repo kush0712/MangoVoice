@@ -11,11 +11,11 @@ const config: Config = {
     extend: {
       colors: {
         forest: {
-          DEFAULT: "#2C663D",
-          deep: "#1E4A2B",
+          DEFAULT: "#000000",
+          deep: "#000000",
         },
-        sunshine: "#F9E24C",
-        hibiscus: "#EA337F",
+        sunshine: "#FFFFFF",
+        hibiscus: "#9333EA",
         cream: "#FEFBEA",
         ink: "#1A1A17",
         muted: {
@@ -35,7 +35,7 @@ const config: Config = {
       boxShadow: {
         card: "6px 8px 0px rgba(0,0,0,0.15)",
         "card-hover": "8px 10px 0px rgba(0,0,0,0.20)",
-        "inner-glow": "inset 0 0 30px rgba(249,226,76,0.1)",
+        "inner-glow": "inset 0 0 30px rgba(255, 255, 255,0.1)",
       },
       animation: {
         "pulse-slow": "pulse 3s ease-in-out infinite",

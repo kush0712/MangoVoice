@@ -40,7 +40,7 @@ export default function TaskStudioCard({
             <div
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{
-                border: "3px dashed #EA337F",
+                border: "3px dashed #9333EA",
                 animation: isListening
                   ? "spin 5s linear infinite"
                   : isProcessing
@@ -68,7 +68,7 @@ export default function TaskStudioCard({
             {isListening && (
               <div
                 className="absolute inset-4 rounded-full animate-ping opacity-30 pointer-events-none"
-                style={{ backgroundColor: "#EA337F" }}
+                style={{ backgroundColor: "#9333EA" }}
               />
             )}
 
@@ -86,10 +86,10 @@ export default function TaskStudioCard({
               }
               className="relative z-10 w-48 h-48 sm:w-52 sm:h-52 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-200 group select-none"
               style={{
-                backgroundColor: isListening ? "#EA337F" : "#1E4A2B",
+                backgroundColor: isListening ? "#9333EA" : "#000000",
                 border: "4px solid #FEFBEA",
                 boxShadow: isListening
-                  ? "0 0 30px rgba(234, 51, 127, 0.6), inset 0 0 20px rgba(0,0,0,0.2)"
+                  ? "0 0 30px rgba(147, 51, 234, 0.6), inset 0 0 20px rgba(0,0,0,0.2)"
                   : "0 8px 24px rgba(0, 0, 0, 0.4), inset 0 4px 10px rgba(255,255,255,0.15)",
                 transform: isListening ? "scale(1.03)" : "scale(1)",
               }}
@@ -109,7 +109,7 @@ export default function TaskStudioCard({
               <span
                 className="font-hhg-mono font-bold text-xs sm:text-sm tracking-widest uppercase"
                 style={{
-                  color: isListening ? "#FEFBEA" : "#F9E24C",
+                  color: isListening ? "#FEFBEA" : "#FFFFFF",
                 }}
               >
                 {isListening
@@ -187,7 +187,7 @@ export default function TaskStudioCard({
             {/* Title in condensed deep green serif */}
             <h2
               className="text-2xl sm:text-3xl md:text-4xl font-bold font-hhg-title leading-tight"
-              style={{ color: "#1E4A2B" }}
+              style={{ color: "#000000" }}
             >
               Ask in Hindi, English or Hinglish
             </h2>
@@ -221,8 +221,8 @@ export default function TaskStudioCard({
           <div
             className="p-3 rounded-xl select-none"
             style={{
-              backgroundColor: "rgba(234, 51, 127, 0.07)",
-              border: "1.5px solid rgba(234, 51, 127, 0.35)",
+              backgroundColor: "rgba(147, 51, 234, 0.07)",
+              border: "1.5px solid rgba(147, 51, 234, 0.35)",
             }}
           >
             <div className="text-xs font-hhg-mono font-bold text-hibiscus uppercase tracking-wider flex items-center justify-between flex-wrap gap-2">

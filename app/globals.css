@@ -2,13 +2,13 @@
 
 @theme {
   /* ── Brand colors ────────────────────────────────────────────────────── */
-  --color-forest:       #1E4A2B;
-  --color-forest-light: #2C663D;
-  --color-forest-dark:  #15361F;
-  --color-sunshine:     #F9E24C;
-  --color-sunshine-gold:#E5CE34;
-  --color-hibiscus:     #EA337F;
-  --color-hibiscus-dark:#C41F65;
+  --color-forest:       #000000;
+  --color-forest-light: #000000;
+  --color-forest-dark:  #000000;
+  --color-sunshine:     #FFFFFF;
+  --color-sunshine-gold:#FFFFFF;
+  --color-hibiscus:     #9333EA;
+  --color-hibiscus-dark:#7E22CE;
   --color-cream:        #FEFBEA;
   --color-cream-card:   #FAF7DE;
   --color-ink:          #1A1A17;
@@ -58,7 +58,7 @@ html {
 }
 
 body {
-  background-color: #1E4A2B;
+  background-color: #000000;
   color: #FEFBEA;
   font-family: var(--font-mono), monospace;
   min-height: 100vh;
@@ -116,11 +116,11 @@ body::before {
 }
 
 .shadow-hhg-text-gold {
-  text-shadow: 3px 3px 0px #15361F;
+  text-shadow: 3px 3px 0px #000000;
 }
 
 .shadow-hhg-pink-glow {
-  text-shadow: 0 0 12px rgba(234, 51, 127, 0.8), 0 0 24px rgba(234, 51, 127, 0.4);
+  text-shadow: 0 0 12px rgba(147, 51, 234, 0.8), 0 0 24px rgba(147, 51, 234, 0.4);
 }
 
 /* ── Cream Paper Cards ──────────────────────────────────────────────────── */
@@ -147,7 +147,7 @@ body::before {
 
 /* ── Signature HH Goa Buttons ────────────────────────────────────────────── */
 .btn-hhg-pink {
-  background-color: #EA337F;
+  background-color: #9333EA;
   color: #FFFFFF;
   font-family: var(--font-mono), monospace;
   font-weight: 700;
@@ -165,7 +165,7 @@ body::before {
   cursor: pointer;
 }
 .btn-hhg-pink:hover {
-  background-color: #C41F65;
+  background-color: #7E22CE;
   transform: translate(-1px, -1px);
   box-shadow: 5px 6px 0px rgba(0, 0, 0, 0.35);
 }
@@ -175,8 +175,8 @@ body::before {
 }
 
 .btn-hhg-yellow {
-  background-color: #F9E24C;
-  color: #1E4A2B;
+  background-color: #FFFFFF;
+  color: #000000;
   font-family: var(--font-mono), monospace;
   font-weight: 700;
   text-transform: uppercase;
@@ -193,7 +193,7 @@ body::before {
   cursor: pointer;
 }
 .btn-hhg-yellow:hover {
-  background-color: #E5CE34;
+  background-color: #FFFFFF;
   transform: translate(-1px, -1px);
   box-shadow: 5px 6px 0px rgba(0, 0, 0, 0.35);
 }
@@ -204,14 +204,14 @@ body::before {
 
 .btn-hhg-outline-pink {
   background-color: transparent;
-  color: #EA337F;
+  color: #9333EA;
   font-family: var(--font-mono), monospace;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 0.75rem 1.75rem;
   border-radius: 999px;
-  border: 2px solid #EA337F;
+  border: 2px solid #9333EA;
   box-shadow: 3px 4px 0px rgba(0, 0, 0, 0.15);
   transition: all 0.15s ease;
   display: inline-flex;
@@ -221,7 +221,7 @@ body::before {
   cursor: pointer;
 }
 .btn-hhg-outline-pink:hover {
-  background-color: #EA337F;
+  background-color: #9333EA;
   color: #FFFFFF;
   transform: translate(-1px, -1px);
   box-shadow: 5px 6px 0px rgba(0, 0, 0, 0.25);
@@ -233,8 +233,8 @@ body::before {
 
 /* ── Patterned Apply Button (Screenshot 1 & 11) ─────────────────────────── */
 .btn-hhg-textile {
-  background: #F9E24C;
-  color: #1E4A2B;
+  background: #FFFFFF;
+  color: #000000;
   font-family: var(--font-display), serif;
   font-weight: 900;
   font-size: 1.125rem;
@@ -244,14 +244,14 @@ body::before {
   border: 4px solid transparent;
   border-image: repeating-linear-gradient(
     45deg,
-    #EA337F 0px,
-    #EA337F 6px,
+    #9333EA 0px,
+    #9333EA 6px,
     #8FC93A 6px,
     #8FC93A 12px,
-    #F9E24C 12px,
-    #F9E24C 18px,
-    #1E4A2B 18px,
-    #1E4A2B 24px
+    #FFFFFF 12px,
+    #FFFFFF 18px,
+    #000000 18px,
+    #000000 24px
   ) 4;
   box-shadow: 4px 6px 0px rgba(0, 0, 0, 0.35);
   transition: all 0.15s ease;
@@ -265,7 +265,7 @@ body::before {
 /* ── Pipeline Chevron ────────────────────────────────────────────────────── */
 .chevron-stage {
   position: relative;
-  background: #1E4A2B;
+  background: #000000;
   color: #FEFBEA;
   padding: 0.75rem 1.5rem 0.75rem 1.75rem;
   clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%, 14px 50%);
@@ -281,18 +281,18 @@ body::before {
   padding-left: 1.25rem;
 }
 .chevron-stage.pink {
-  background: #EA337F;
+  background: #9333EA;
   color: #FFFFFF;
 }
 .chevron-stage.active {
-  background: #F9E24C;
-  color: #1E4A2B;
-  box-shadow: 0 0 16px rgba(249, 226, 76, 0.6);
+  background: #FFFFFF;
+  color: #000000;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.6);
   transform: scale(1.04);
   z-index: 10;
 }
 .chevron-stage.done {
-  background: #2C663D;
+  background: #000000;
   color: #FEFBEA;
   opacity: 0.9;
 }
@@ -303,13 +303,13 @@ body::before {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #15361F;
+  background: #000000;
 }
 ::-webkit-scrollbar-thumb {
-  background: #F9E24C;
+  background: #FFFFFF;
   border-radius: 4px;
-  border: 2px solid #15361F;
+  border: 2px solid #000000;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #EA337F;
+  background: #9333EA;
 }

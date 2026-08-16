@@ -14,8 +14,8 @@ const STATE_CONFIG = {
   idle: {
     label: "SPEAK",
     subLabel: "Press to ask",
-    bgClass: "bg-hibiscus hover:bg-[#c41f65] active:scale-95",
-    ringColor: "rgba(234,51,127,0.35)",
+    bgClass: "bg-hibiscus hover:bg-[#7e22ce] active:scale-95",
+    ringColor: "rgba(147, 51, 234,0.35)",
     icon: <Mic size={32} strokeWidth={2} />,
     ping: false,
   },
@@ -24,7 +24,7 @@ const STATE_CONFIG = {
     subLabel: "Press to stop",
     bgClass: "bg-sunshine hover:bg-sunshine active:scale-95",
     textClass: "text-forest",
-    ringColor: "rgba(249,226,76,0.45)",
+    ringColor: "rgba(255, 255, 255,0.45)",
     icon: <Square size={28} strokeWidth={2.5} fill="currentColor" />,
     ping: true,
   },
@@ -39,8 +39,8 @@ const STATE_CONFIG = {
   error: {
     label: "TRY AGAIN",
     subLabel: "Error occurred",
-    bgClass: "bg-hibiscus hover:bg-[#c41f65] active:scale-95",
-    ringColor: "rgba(234,51,127,0.35)",
+    bgClass: "bg-hibiscus hover:bg-[#7e22ce] active:scale-95",
+    ringColor: "rgba(147, 51, 234,0.35)",
     icon: <Mic size={32} strokeWidth={2} />,
     ping: false,
   },
@@ -76,7 +76,7 @@ export default function MicButton({ state, onClick, disabled }: MicButtonProps) 
             className="absolute inset-0 rounded-full animate-ping"
             style={{
               margin: "-4px",
-              backgroundColor: "rgba(249,226,76,0.25)",
+              backgroundColor: "rgba(255, 255, 255,0.25)",
               borderRadius: "50%",
             }}
           />

@@ -148,8 +148,8 @@ export default function GoaPipelineAndStrategies({
                 disabled={isProcessing}
                 className="group relative text-left p-4 rounded-xl transition-all duration-200 hover:-translate-y-1 select-none flex flex-col justify-between cursor-pointer"
                 style={{
-                  backgroundColor: isPink ? "#EA337F" : "#F9E24C",
-                  color: isPink ? "#FFFFFF" : "#1E4A2B",
+                  backgroundColor: isPink ? "#9333EA" : "#FFFFFF",
+                  color: isPink ? "#FFFFFF" : "#000000",
                   boxShadow: "5px 6px 0px rgba(0,0,0,0.35)",
                   border: "2px solid #1A1A17",
                 }}
@@ -265,8 +265,8 @@ export default function GoaPipelineAndStrategies({
                   strat.prod ? "ring-4 ring-sunshine" : ""
                 }`}
                 style={{
-                  backgroundColor: isPink ? "#EA337F" : "#F9E24C",
-                  color: isPink ? "#FFFFFF" : "#1E4A2B",
+                  backgroundColor: isPink ? "#9333EA" : "#FFFFFF",
+                  color: isPink ? "#FFFFFF" : "#000000",
                   boxShadow: "6px 8px 0px rgba(0,0,0,0.35)",
                   border: "2px solid #1A1A17",
                 }}
