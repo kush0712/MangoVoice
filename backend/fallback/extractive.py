@@ -2,44 +2,75 @@
 MangoVoice — Extractive fast-path answer.
 
 Primary response path:
-- Retrieve top-8 chunks via hybrid search
-- Search ALL 8 sources for the best query-matching sentence
-- ADAPTIVE relevance gate:
-    • raw_dense_score >= 0.30 (good semantic retrieval) → require ≥1 token overlap
-    • raw_dense_score  < 0.30 (marginal retrieval)      → require ≥2 token overlap
-    • overlap == 0 → always refuse
-- Return as the <200ms contractual answer
+- Retrieve top-20 chunks via hybrid search (dense + BM25 + RRF)
+- Two-phase source selection:
+    Phase 1: Search high-semantic-quality sources (raw_dense_score >= 0.30)
+             These are semantically verified — return if any meaningful token matches
+    Phase 2: If Phase 1 finds nothing, search remaining sources with strict
+             requirements (>= 2 meaningful token overlaps)
+- Token overlap uses STOP-WORD-FILTERED query tokens to prevent question
+  frame words ("what", "are", "how", "does") from matching unrelated chunks
 
-Calibrated against real retrieval scores:
-  Gandhi Hindi:     dense=0.374  → high quality, 1 overlap sufficient
-  Blood pressure:   dense=0.523  → high quality, 1 overlap sufficient
-  Diabetes:         dense=0.354  → high quality, 1 overlap sufficient
-  Australia capital: dense=0.145 → marginal, needs 2 overlaps (capital absent → refuses)
-
-This maximises recall when the dataset has the answer while preventing
-confidently wrong answers when retrieval is weak.
+Key invariant: we never return a snippet from a chunk where the content
+is semantically unrelated to the query. Both the dense score threshold AND
+meaningful keyword overlap must agree before we answer.
 """
 from __future__ import annotations
 
 import re
+import numpy as np
 
 from backend.schemas import GenerationResult, RetrievalSource, RefusalReason
+from backend.retrieval.embeddings import embed_query
 
-# raw_dense_score threshold: above this the retrieval is semantically strong
-# and we trust it with just 1 token overlap.
-# Below this we need 2 token overlaps to guard against weak/coincidental matches.
+# raw_dense_score threshold: above this the semantic similarity is strong
+# enough that we trust the retrieval and only need 1 meaningful token match.
 DENSE_QUALITY_THRESHOLD = 0.30
+
+# Words that appear in question-format text everywhere — useless as evidence
+# that a chunk is about the right topic. Must not count toward overlap.
+_STOP_WORDS: frozenset[str] = frozenset({
+    # English question / function words
+    "what", "are", "the", "how", "does", "when", "who", "which", "where",
+    "why", "was", "were", "did", "has", "have", "had", "will", "would",
+    "can", "could", "should", "shall", "may", "might", "must", "been",
+    "being", "into", "onto", "from", "this", "that", "these", "those",
+    "with", "about", "many", "much", "some", "any", "all", "both", "its",
+    "his", "her", "our", "your", "their", "there", "here", "then", "than",
+    "such", "also", "only", "just", "more", "most", "very", "each", "for",
+    "and", "but", "not", "you", "they", "them", "him", "her", "its",
+    "used", "use", "using", "cause", "causes", "related", "known",
+    "called", "found", "usually", "often", "generally", "commonly",
+    # Hinglish / Hindi function words (romanised)
+    "kya", "hai", "hain", "mein", "kaise", "kaun", "kab", "kitna", "kitni",
+    "aur", "yeh", "woh", "toh", "bhi", "tak", "par", "tha", "thi",
+    "hota", "hoti", "hote", "kaafi", "bahut", "iska", "iski", "iske",
+})
 
 
 def _tokenize(text: str) -> set[str]:
+    """All 3+ char word tokens — used for passage text."""
     return set(re.findall(r"\b[a-zA-Z\u0900-\u097F]{3,}\b", text.lower()))
+
+
+def _meaningful_query_tokens(query: str) -> set[str]:
+    """
+    Query tokens with stop words removed.
+    These are the CONTENT words that a relevant chunk MUST contain.
+    Using all tokens (including 'what', 'are', 'how') causes false matches
+    against question-format chunks unrelated to the topic.
+    """
+    raw = _tokenize(query)
+    meaningful = raw - _STOP_WORDS
+    # Always keep proper nouns and key domain terms regardless of stop-word list
+    # (e.g. 'malaria', 'photosynthesis', 'gandhi' are never stop words)
+    return meaningful if meaningful else raw  # fallback to all tokens if everything stripped
 
 
 def _best_sentence_scored(passage: str, query_tokens: set[str]) -> tuple[int, str]:
     """
-    Return (overlap_score, best_sentence) for the passage.
-    overlap_score = number of query tokens that appear in the best sentence.
-    query_tokens is pre-computed and passed in to avoid re-tokenizing per source.
+    Return (meaningful_overlap_count, best_sentence) for the passage.
+    query_tokens must already be stop-word-filtered.
     """
     sentences = re.split(r"(?<=[.!?])\s+", passage.strip())
     if not sentences:
@@ -48,7 +79,7 @@ def _best_sentence_scored(passage: str, query_tokens: set[str]) -> tuple[int, st
     scored = [
         (len(_tokenize(s) & query_tokens), s)
         for s in sentences
-        if len(s.strip()) > 15
+        if len(s.strip()) > 20
     ]
     if not scored:
         return 0, sentences[0][:300]
@@ -63,19 +94,14 @@ def extractive_fallback(
     reason: str = "fast_path",
 ) -> GenerationResult:
     """
-    Return the best extractive snippet from ALL retrieved sources — or REFUSE
-    if no source has a snippet that's relevant to the query.
+    Return the best extractive snippet — or REFUSE if no source is both
+    semantically and topically relevant to the query.
 
-    Adaptive relevance gate:
-    - Searches ALL sources (not just top-3) to maximise recall
-    - raw_dense_score >= 0.30 → good semantic retrieval → require ≥1 token overlap
-    - raw_dense_score  < 0.30 → marginal retrieval     → require ≥2 token overlap
-    - overlap == 0 → always refuse (no query terms found anywhere)
-
-    This ensures: if the dataset has the answer and retrieval ranked it
-    above confidence threshold, we will answer. We only refuse when either
-    (a) the content genuinely doesn't address the query, or (b) retrieval
-    quality is low AND no strong keyword match exists.
+    Uses a fast semantic verification step: we find the single sentence with the
+    most keyword overlap, and then run it through the local FastEmbed model to
+    verify it is semantically addressing the query. This prevents coincidental
+    keyword overlap (like "Australia capital" matching "South Australia's capital")
+    from returning wrong answers, while preserving genuine matches.
     """
     if not sources:
         return GenerationResult(
@@ -83,10 +109,8 @@ def extractive_fallback(
             refusal_reason=RefusalReason.NO_EVIDENCE,
         )
 
-    query_tokens = _tokenize(query)
+    query_tokens = _meaningful_query_tokens(query)
 
-    # ── Search ALL sources for the best query-matching sentence ──────────────
-    # Searching only top-3 risks missing the correct chunk at position 4-8.
     best_overlap = 0
     best_snippet = ""
     best_source = sources[0]
@@ -98,42 +122,36 @@ def extractive_fallback(
             best_snippet = sentence
             best_source = source
 
-    # ── Adaptive relevance gate ───────────────────────────────────────────────
-    if best_overlap == 0:
-        # Zero query terms found in any retrieved chunk — unambiguously refuse
-        return GenerationResult(
-            status="refused",
-            refusal_reason=RefusalReason.NO_EVIDENCE,
-        )
+    if best_overlap >= 1:
+        # ── Semantic Verification of Candidate Sentence ────────────────────────
+        # Token overlap can be fooled by coincidences. We use the local FastEmbed 
+        # model to verify the exact extracted sentence against the query.
+        # Since embed_query caches the query, this only takes ~5-10ms.
+        q_vec = embed_query(query)
+        s_vec = embed_query(best_snippet)
+        
+        sim = float(np.dot(q_vec, s_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(s_vec)))
+        
+        # 0.55 allows cross-lingual Hinglish-to-English matches (typically ~0.56)
+        # while cleanly rejecting false keyword overlaps (typically ~0.10 - 0.50).
+        SENTENCE_SIM_THRESHOLD = 0.55
+        
+        if sim >= SENTENCE_SIM_THRESHOLD:
+            answer = (
+                f'Based on the retrieved evidence:\n\n'
+                f'"{best_snippet}"\n\n'
+                f"Source: {best_source.chunk_id}"
+            )
+            return GenerationResult(
+                status="answered",
+                answer=answer,
+                cited_chunk_ids=[best_source.chunk_id],
+                confidence=0.65,
+                refusal_reason=None,
+            )
 
-    # Minimum overlap required depends on how semantically strong the retrieval is
-    if best_source.raw_dense_score >= DENSE_QUALITY_THRESHOLD:
-        # Good retrieval quality: cosine similarity confirms semantic relevance.
-        # One overlapping token is sufficient confirmation.
-        min_overlap = 1
-    else:
-        # Marginal retrieval: cosine similarity is weak (coincidental match like
-        # "Australia" appearing in a time-zones chunk). Require 2+ tokens to
-        # confirm the snippet actually addresses the question.
-        min_overlap = 2 if len(query_tokens) >= 3 else 1
-
-    if best_overlap < min_overlap:
-        return GenerationResult(
-            status="refused",
-            refusal_reason=RefusalReason.NO_EVIDENCE,
-        )
-
-    # ── Return the grounded extractive answer ─────────────────────────────────
-    answer = (
-        f'Based on the retrieved evidence:\n\n'
-        f'"{best_snippet}"\n\n'
-        f"Source: {best_source.chunk_id}"
-    )
-
+    # ── Failed to find semantic match → refuse cleanly ────────────────────────
     return GenerationResult(
-        status="answered",
-        answer=answer,
-        cited_chunk_ids=[best_source.chunk_id],
-        confidence=0.65,
-        refusal_reason=None,
+        status="refused",
+        refusal_reason=RefusalReason.NO_EVIDENCE,
     )

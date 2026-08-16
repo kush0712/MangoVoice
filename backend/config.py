@@ -53,12 +53,11 @@ class Settings(BaseSettings):
     rrf_k: int = 60
 
     # ── Confidence gate ────────────────────────────────────────────────────────
-    # Calibrated to 0.75 for maximum precision. Since final_top_k is now 20,
-    # confidence naturally inflated. 0.75 cleanly separates genuine dataset
-    # hits (Gandhi, Blood Pressure, Diabetes -> 0.80+) from coincidental
-    # keyword overlaps (Malaria, WW2 -> 0.60-0.69) where the dataset lacks
-    # the answer. This guarantees we don't return wrong answers.
-    confidence_low_threshold: float = 0.75
+    # Relaxed to 0.50. The extractive fallback now performs a strict semantic
+    # verification of the specific candidate sentence (sim >= 0.55). This gate
+    # only needs to drop completely unrelated junk, ensuring legitimate but
+    # borderline cross-lingual matches (like Hinglish) reach the fallback.
+    confidence_low_threshold: float = 0.50
     confidence_margin_min: float = 0.05
     confidence_min_supporting: int = 2
 
