@@ -145,12 +145,17 @@ def verify_grounding_extractive(
     Lightweight grounding check for the extractive fast path.
 
     Skips sentence-embedding (the snippet is a direct substring of source text,
-    so semantic similarity is guaranteed by construction). Runs only:
+    so semantic similarity is guaranteed by construction). Runs:
       A. Citation existence check (symmetric with full verify_grounding)
-      B. Entity/number overlap (answer entities present in evidence)
+      B. Substring fingerprint — verifies the extracted snippet is literally
+         present in the cited source text. Language-agnostic (works for Hindi,
+         Hinglish, English). The entity-overlap approach is intentionally NOT
+         used here because it is English-biased (only matches capitalized ASCII
+         tokens) and the answer prefix ("Based on the retrieved evidence:",
+         "Source:") would introduce English tokens that can never appear in
+         Hindi evidence, causing false failures.
 
-    Latency: ~0ms (no embedding call). Full verify_grounding is used only
-    for LLM-generated answers.
+    Latency: ~0ms (no embedding call, string ops only).
     """
     t0 = time.perf_counter()
 
@@ -170,35 +175,36 @@ def verify_grounding_extractive(
             citation_valid=False,
         )
 
-    # ── B. Entity/number overlap ──────────────────────────────────────────────
-    # Snippet is a direct substring of source text — overlap is guaranteed to
-    # be high by construction. We still run the check so the logic is symmetric
-    # with the full verifier and judges can see it executes.
-    answer_entities = _extract_numbers_entities(gen.answer)
+    # ── B. Snippet substring fingerprint ─────────────────────────────────────
+    # The extractive answer wraps the snippet in double-quotes.
+    # Extract it and verify it literally appears in the cited source text.
+    # This is correct for ALL languages — it's a string containment check,
+    # not a token/entity check, so Devanagari and Hinglish work identically.
     cited_sources = [s for s in sources if s.chunk_id in cited_ids]
-    evidence_all_text = " ".join(s.text for s in cited_sources)
-    evidence_entities = _extract_numbers_entities(evidence_all_text)
+    evidence_text = " ".join(s.text for s in cited_sources).lower().strip()
 
-    if answer_entities:
-        overlap = len(answer_entities & evidence_entities) / len(answer_entities)
+    snippet_match = re.search(r'"([^"]{10,})"', gen.answer)
+    if snippet_match:
+        snippet = snippet_match.group(1).strip()
+        # Use first 60 chars as fingerprint (robust to minor trailing whitespace)
+        fingerprint = snippet[:60].lower().strip()
+        grounded = bool(fingerprint) and (fingerprint in evidence_text)
+        final_score = 1.0 if grounded else 0.0
     else:
-        overlap = 1.0  # no entities to check → pass
+        # Answer not in expected format — citation already verified, treat as pass
+        final_score = 1.0
 
-    # Extractive answers don't have sentence-level embedding scores;
-    # score is entity overlap alone (weighted 1.0 since that's the only signal).
-    final_score = overlap
     passed = final_score >= OVERALL_GROUNDING_THRESHOLD
 
     latency_ms = (time.perf_counter() - t0) * 1000
     logger.info(
-        "Extractive grounding: score=%.3f entity_overlap=%.3f passed=%s (%.2fms)",
-        final_score, overlap, passed, latency_ms,
+        "Extractive grounding: score=%.3f passed=%s (%.2fms)",
+        final_score, passed, latency_ms,
         extra={"stage": "grounding_extractive", "latency_ms": round(latency_ms, 2)},
     )
 
     return GroundingResult(
         passed=passed,
         score=final_score,
-        entity_overlap=overlap,
         citation_valid=citation_valid,
     )
