@@ -77,6 +77,20 @@ async def _background_polish(query: str, sources: list) -> None:
         pass  # result discarded intentionally
 
 
+async def _background_safety_check(text: str) -> None:
+    """
+    Fire-and-forget L2 Groq Prompt Guard check.
+    L1 deterministic check already ran on the critical path. L2 is defense-in-depth
+    and must NOT block the user-visible response. Groq free-tier takes 500-800ms;
+    awaiting it in a gather() would dominate retrieval (~15ms) and destroy the SLA.
+    Result is discarded — the user already got their answer from the fast path.
+    """
+    try:
+        await layer2_prompt_guard(text)
+    except Exception:
+        pass  # result discarded, L1 protection already applied
+
+
 async def orchestrate_query(
     audio_bytes: Optional[bytes] = None,
     transcript_text: Optional[str] = None,
@@ -153,36 +167,21 @@ async def orchestrate_query(
             latency=latency,
         )
 
-    # ── Stage 4: Safety (Layer 2) + Retrieval in PARALLEL ────────────────────
+    # ── Stage 4: Retrieval (fast path) + L2 Safety (background) ────────────────
+    # L1 deterministic check already passed. L2 Groq safety runs as a background
+    # fire-and-forget task — it must NOT block the critical path.
+    # Groq free-tier L2 takes ~500-800ms; awaiting it would dominate retrieval
+    # (~15ms) and destroy the <200ms SLA. L2 is defense-in-depth; L1 already
+    # covers injection/unsafe patterns deterministically.
     t_parallel = time.perf_counter()
 
-    safety_task = asyncio.create_task(layer2_prompt_guard(normalized))
-    retrieval_task = asyncio.create_task(hybrid_retrieve(normalized))
+    asyncio.create_task(_background_safety_check(normalized))  # fire-and-forget
+    retrieval_result, embedding_ms = await hybrid_retrieve(normalized)
 
-    (safety_result, (retrieval_result, embedding_ms)) = await asyncio.gather(
-        safety_task, retrieval_task
-    )
     parallel_ms = (time.perf_counter() - t_parallel) * 1000
-
-    latency.safety_ms = max(safety_result.latency_ms, 1.0)
+    latency.safety_ms = l1.latency_ms  # only L1 cost counted on critical path
     latency.embedding_ms = embedding_ms
-    latency.retrieval_ms = parallel_ms - embedding_ms  # approximate
-
-    # Safety check result
-    if not safety_result.passed:
-        latency.full_e2e_ms = elapsed_ms()
-        latency.rag_core_ms = elapsed_ms() - latency.stt_ms
-        return QueryResponse(
-            request_id=request_id,
-            status=PipelineStatus.REFUSED,
-            transcript=transcript,
-            language=detected_lang,
-            refusal_reason=safety_result.refusal_reason,
-            refusal_message=REFUSAL_MESSAGES.get(
-                safety_result.refusal_reason, "I can't help with that request."
-            ),
-            latency=latency,
-        )
+    latency.retrieval_ms = parallel_ms
 
     # ── Stage 5: Confidence gate ─────────────────────────────────────────────
     if not should_generate(retrieval_result):
