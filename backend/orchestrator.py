@@ -202,11 +202,26 @@ async def orchestrate_query(
 
     sources = retrieval_result.sources
 
-    # ── Stage 6: Extractive fast path (primary answer, <200ms) ───────────────
-    # Compute extractive answer — pure Python, ~0ms
+    # ── Stage 6: Extractive Fallback (Sub-millisecond) ────────────────────────
     t_extractive = time.perf_counter()
     fast_answer = extractive_fallback(sources, normalized, reason="fast_path")
     latency.generation_ms = (time.perf_counter() - t_extractive) * 1000
+    
+    if fast_answer.status == "refused":
+        latency.rag_core_ms = elapsed_ms() - latency.stt_ms
+        latency.full_e2e_ms = elapsed_ms()
+        return QueryResponse(
+            request_id=request_id,
+            status=PipelineStatus.REFUSED,
+            transcript=transcript,
+            language=detected_lang,
+            confidence=ConfidenceLevel.REFUSED,
+            confidence_score=retrieval_result.confidence,
+            sources=sources[:3],
+            refusal_reason=fast_answer.refusal_reason,
+            refusal_message=fast_answer.answer, # PASS THE DEBUG MESSAGE HERE
+            latency=latency,
+        )
 
     # ── Stage 7: Lightweight grounding (citation + entity overlap, ~0ms) ─────
     t_ground = time.perf_counter()

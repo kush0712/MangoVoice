@@ -151,7 +151,10 @@ def extractive_fallback(
             )
 
     # ── Failed to find semantic match → refuse cleanly ────────────────────────
+    # Include debug info to understand why the server is rejecting this
+    debug_msg = f"Failed. Overlap: {best_overlap}, Sim: {sim if 'sim' in locals() else 'N/A'}, Best: {best_snippet[:50]}"
     return GenerationResult(
         status="refused",
         refusal_reason=RefusalReason.NO_EVIDENCE,
+        answer=debug_msg, # temporary debug injection
     )
