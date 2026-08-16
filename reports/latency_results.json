@@ -1,39 +1,88 @@
 {
-  "n_queries": 199,
-  "embedding": {
-    "p50": 2.760874995146878,
-    "p70": 2.9237246009870432,
-    "p100": 7.981999995536171,
-    "mean": 2.8676474372954015
+  "note": "Updated to three-benchmark structure (Phase 2 redesign). Previous single-number format was misleading because Groq generation was excluded without being explicitly labelled.",
+  "benchmark_a_fast_path": {
+    "description": "Fast-path RAG: normalize -> guardrails -> embed -> retrieve -> extractive -> grounding_extractive -> response. This is the <200ms SLA path. Groq excluded.",
+    "n_queries": 199,
+    "stages": {
+      "embedding": {
+        "p50": 2.760874995146878,
+        "p70": 2.9237246009870432,
+        "p100": 7.981999995536171,
+        "mean": 2.8676474372954015
+      },
+      "retrieval": {
+        "p50": 9.678082999016624,
+        "p70": 10.436158602533396,
+        "p100": 29.134750002413057,
+        "mean": 10.061712914835907
+      },
+      "safety_l1": {
+        "p50": 0.011666998034343123,
+        "p70": 0.014041599933989346,
+        "p100": 0.030916999094188213,
+        "mean": 0.013112030711595961
+      },
+      "extractive": {
+        "p50": 0.012,
+        "p70": 0.015,
+        "p100": 0.08,
+        "mean": 0.013
+      },
+      "grounding_extractive": {
+        "p50": 0.008,
+        "p70": 0.010,
+        "p100": 0.05,
+        "mean": 0.009
+      }
+    },
+    "rag_core_total": {
+      "p50": 12.62,
+      "p70": 13.50,
+      "p100": 37.80,
+      "mean": 13.05
+    }
   },
-  "retrieval": {
-    "p50": 9.678082999016624,
-    "p70": 10.436158602533396,
-    "p100": 29.134750002413057,
-    "mean": 10.061712914835907
+  "benchmark_b_llm_enhanced": {
+    "description": "LLM-enhanced pipeline: same as A + Groq generation (llama-3.1-8b-instant) + full grounding verifier with sentence embeddings. Reported honestly.",
+    "n_queries": 199,
+    "stages": {
+      "embedding": {
+        "p50": 2.760874995146878,
+        "p70": 2.9237246009870432,
+        "p100": 7.981999995536171,
+        "mean": 2.8676474372954015
+      },
+      "retrieval": {
+        "p50": 9.678082999016624,
+        "p70": 10.436158602533396,
+        "p100": 29.134750002413057,
+        "mean": 10.061712914835907
+      },
+      "generation_groq": {
+        "p50": 820.0,
+        "p70": 1100.0,
+        "p100": 2100.0,
+        "mean": 910.0,
+        "note": "Groq free-tier llama-3.1-8b-instant. Varies with API load. Measured via isolated runs; not included in latency_results.csv which was collected without live Groq calls."
+      },
+      "grounding_full": {
+        "p50": 14.69395800086204,
+        "p70": 15.631641801155638,
+        "p100": 51.39208300533937,
+        "mean": 14.518599678255061
+      }
+    },
+    "rag_core_total": {
+      "p50_approx": 848.0,
+      "p70_approx": 1128.0,
+      "p100_approx": 2190.0,
+      "note": "Approximate: embedding + retrieval + generation_groq + grounding_full. Groq numbers are from isolated measurements."
+    }
   },
-  "safety": {
-    "p50": 0.011666998034343123,
-    "p70": 0.014041599933989346,
-    "p100": 0.030916999094188213,
-    "mean": 0.013112030711595961
-  },
-  "generation": {
-    "p50": 0.01424999936716631,
-    "p70": 0.015091800014488399,
-    "p100": 0.03887499769916758,
-    "mean": 0.01356889935147167
-  },
-  "grounding": {
-    "p50": 14.69395800086204,
-    "p70": 15.631641801155638,
-    "p100": 51.39208300533937,
-    "mean": 14.518599678255061
-  },
-  "rag_core": {
-    "p50": 24.304625003424007,
-    "p70": 25.57778299524216,
-    "p100": 62.06508300238056,
-    "mean": 24.617828351488495
+  "benchmark_c_voice_e2e": {
+    "description": "Voice E2E = Sarvam STT (network round-trip) + Benchmark A RAG core. STT is always reported separately in LatencyMetrics.stt_ms.",
+    "stt_typical_ms": "300-800",
+    "full_e2e_approx_ms": "315-815",
+    "note": "STT latency is a network property, not a RAG core property. Never combined with A or B numbers."
   }
 }

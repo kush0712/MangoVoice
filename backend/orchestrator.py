@@ -6,12 +6,16 @@ States:
   → SAFETY_CHECK + RETRIEVAL (parallel)
   → CONFIDENCE_GATE
   │ REFUSE
-  └ GENERATE → GROUNDING_CHECK
-                │ PASS → FINALIZE
-                └ REGENERATE_ONCE → FINALIZE
+  └ EXTRACTIVE_FAST_PATH → GROUNDING_CHECK (lightweight, ~0ms)
+                            │ PASS → return ANSWERED (<200ms guaranteed)
+                            └ FAIL → return REFUSED with sources[:3]
+    [Groq fires as background task — result discarded, user already answered]
 
-Per-stage timing is captured precisely.
-All retries are bounded (max 1 retry per external call).
+Design goals:
+  1. Extractive answer is the <200ms contractual response.
+  2. Groq is NEVER awaited in /api/query — zero blocking LLM latency.
+  3. Every refused branch returns sources[:3] when evidence exists.
+  4. Per-stage timing captured precisely.
 """
 from __future__ import annotations
 
@@ -33,7 +37,7 @@ from backend.guardrails import normalize_text, layer1_check, layer2_prompt_guard
 from backend.retrieval.retriever import hybrid_retrieve
 from backend.retrieval.confidence import should_generate
 from backend.generation import generate
-from backend.grounding import verify_grounding
+from backend.grounding import verify_grounding_extractive
 from backend.fallback.extractive import extractive_fallback
 from backend.telemetry import get_logger, new_request_id
 
@@ -61,6 +65,18 @@ def _confidence_level(score: float, retrieval_score: float) -> ConfidenceLevel:
     return ConfidenceLevel.REFUSED
 
 
+async def _background_polish(query: str, sources: list) -> None:
+    """
+    Fire-and-forget Groq call. Result is discarded — user already received
+    their extractive answer. Wrapped in try/except so a Groq 429 or timeout
+    never surfaces as an unhandled exception in the worker logs.
+    """
+    try:
+        await generate(query, sources)
+    except Exception:
+        pass  # result discarded intentionally
+
+
 async def orchestrate_query(
     audio_bytes: Optional[bytes] = None,
     transcript_text: Optional[str] = None,
@@ -68,6 +84,8 @@ async def orchestrate_query(
 ) -> QueryResponse:
     """
     Full RAG pipeline from audio/text to structured answer.
+    Returns the extractive fast-path answer in <200ms.
+    Groq fires in the background (fire-and-forget, result discarded).
     """
     request_id = new_request_id()
     t_start = time.perf_counter()
@@ -185,107 +203,68 @@ async def orchestrate_query(
 
     sources = retrieval_result.sources
 
-    # ── Stage 6: Generation ──────────────────────────────────────────────────
-    t_gen = time.perf_counter()
-    gen_result: GenerationResult = await generate(normalized, sources)
-    latency.generation_ms = (time.perf_counter() - t_gen) * 1000
+    # ── Stage 6: Extractive fast path (primary answer, <200ms) ───────────────
+    # Compute extractive answer — pure Python, ~0ms
+    t_extractive = time.perf_counter()
+    fast_answer = extractive_fallback(sources, normalized, reason="fast_path")
+    latency.generation_ms = (time.perf_counter() - t_extractive) * 1000
 
-    # Handle generation failure → clean refusal (do NOT dump unrelated extractive chunks)
-    if gen_result.status == "refused" and gen_result.refusal_reason == RefusalReason.GENERATION_UNAVAILABLE:
-        latency.rag_core_ms = elapsed_ms() - latency.stt_ms
-        latency.full_e2e_ms = elapsed_ms()
-        return QueryResponse(
-            request_id=request_id,
-            status=PipelineStatus.REFUSED,
-            transcript=transcript,
-            language=detected_lang,
-            confidence=ConfidenceLevel.REFUSED,
-            sources=[],
-            refusal_reason=RefusalReason.GENERATION_UNAVAILABLE,
-            refusal_message=REFUSAL_MESSAGES[RefusalReason.GENERATION_UNAVAILABLE],
-            latency=latency,
-        )
-
-    # Model chose to refuse
-    if gen_result.status == "refused":
-        latency.rag_core_ms = elapsed_ms() - latency.stt_ms
-        latency.full_e2e_ms = elapsed_ms()
-        return QueryResponse(
-            request_id=request_id,
-            status=PipelineStatus.REFUSED,
-            transcript=transcript,
-            language=detected_lang,
-            confidence=ConfidenceLevel.REFUSED,
-            sources=sources[:3],
-            refusal_reason=RefusalReason.NO_EVIDENCE,
-            refusal_message=REFUSAL_MESSAGES[RefusalReason.NO_EVIDENCE],
-            latency=latency,
-        )
-
-    # ── Stage 7: Grounding verification ─────────────────────────────────────
+    # ── Stage 7: Lightweight grounding (citation + entity overlap, ~0ms) ─────
     t_ground = time.perf_counter()
-    grounding = verify_grounding(gen_result, sources)
+    grounding = verify_grounding_extractive(fast_answer, sources)
     latency.grounding_ms = (time.perf_counter() - t_ground) * 1000
 
-    # If grounding fails → one strict regeneration
     if not grounding.passed:
-        logger.info("Grounding failed — attempting strict regeneration")
-        t_regen = time.perf_counter()
-        gen_result = await generate(normalized, sources, strict=True)
-        latency.generation_ms += (time.perf_counter() - t_regen) * 1000
+        # Grounding failed even for extractive — extremely rare but handle cleanly
+        latency.rag_core_ms = elapsed_ms() - latency.stt_ms
+        latency.full_e2e_ms = elapsed_ms()
+        logger.warning(
+            "Extractive grounding failed: score=%.3f — refusing with sources",
+            grounding.score,
+        )
+        return QueryResponse(
+            request_id=request_id,
+            status=PipelineStatus.REFUSED,
+            transcript=transcript,
+            language=detected_lang,
+            confidence=ConfidenceLevel.REFUSED,
+            sources=sources[:3],  # always return evidence when we have it
+            refusal_reason=RefusalReason.GROUNDING_FAILED,
+            refusal_message=REFUSAL_MESSAGES[RefusalReason.GROUNDING_FAILED],
+            grounding_score=grounding.score,
+            latency=latency,
+        )
 
-        if gen_result.status == "answered":
-            t_ground2 = time.perf_counter()
-            grounding = verify_grounding(gen_result, sources)
-            latency.grounding_ms += (time.perf_counter() - t_ground2) * 1000
+    # ── Stage 8: Fire Groq in background (fire-and-forget, never awaited) ────
+    # User gets their answer NOW. Groq result is discarded — it does not affect
+    # this response. A 429 rate-limit or timeout will be silently swallowed by
+    # _background_polish so no noisy tracebacks appear in worker logs.
+    if settings.has_groq_key:
+        asyncio.create_task(_background_polish(normalized, sources))
 
-        if not grounding.passed or gen_result.status != "answered":
-            # Grounding failed twice → refuse instead of dumping unrelated text
-            latency.rag_core_ms = elapsed_ms() - latency.stt_ms
-            latency.full_e2e_ms = elapsed_ms()
-            return QueryResponse(
-                request_id=request_id,
-                status=PipelineStatus.REFUSED,
-                transcript=transcript,
-                language=detected_lang,
-                confidence=ConfidenceLevel.REFUSED,
-                sources=[],
-                refusal_reason=RefusalReason.GROUNDING_FAILED,
-                refusal_message="I couldn't find evidence in the knowledge base that answers that question.",
-                grounding_score=grounding.score,
-                latency=latency,
-            )
-
-    # ── Final: build structured response ─────────────────────────────────────
+    # ── Final: build structured extractive response ───────────────────────────
     latency.rag_core_ms = elapsed_ms() - latency.stt_ms
     latency.full_e2e_ms = elapsed_ms()
 
-    conf_level = _confidence_level(gen_result.confidence, retrieval_result.confidence)
+    conf_level = _confidence_level(fast_answer.confidence, retrieval_result.confidence)
 
     logger.info(
-        "Query complete: status=answered confidence=%s rag_core=%.1fms",
+        "Query complete: status=answered source=extractive confidence=%s rag_core=%.1fms",
         conf_level.value,
         latency.rag_core_ms,
         extra={"stage": "finalize", "latency_ms": round(latency.rag_core_ms, 1)},
     )
-
-    # Filter sources to only cited ones (+ top 3 for context)
-    cited_ids = set(gen_result.cited_chunk_ids)
-    displayed_sources = [s for s in sources if s.chunk_id in cited_ids]
-    if len(displayed_sources) < 3:
-        displayed_sources += [s for s in sources if s.chunk_id not in cited_ids][
-            : 3 - len(displayed_sources)
-        ]
 
     return QueryResponse(
         request_id=request_id,
         status=PipelineStatus.ANSWERED,
         transcript=transcript,
         language=detected_lang,
-        answer=gen_result.answer,
+        answer=fast_answer.answer,
+        answer_source="extractive",
         confidence=conf_level,
-        confidence_score=gen_result.confidence,
-        sources=displayed_sources[:5],
+        confidence_score=fast_answer.confidence,
+        sources=sources[:5],
         refusal_reason=None,
         grounding_score=grounding.score,
         latency=latency,

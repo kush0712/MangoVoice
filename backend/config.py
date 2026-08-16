@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # ── App limits ───────────────────────────────────────────────────────────
     max_audio_seconds: int = 25
     max_audio_bytes: int = 10 * 1024 * 1024  # 10 MB
-    max_transcript_chars: int = 1000
+    max_transcript_chars: int = 512
     max_output_tokens: int = 512
 
     # ── Retrieval config ─────────────────────────────────────────────────────

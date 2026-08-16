@@ -131,6 +131,7 @@ class QueryResponse(BaseModel):
     transcript: str | None = None
     language: str | None = None
     answer: str | None = None
+    answer_source: str | None = None   # "extractive" | "llm" | None
     confidence: ConfidenceLevel = ConfidenceLevel.REFUSED
     confidence_score: float = 0.0
     sources: list[RetrievalSource] = Field(default_factory=list)

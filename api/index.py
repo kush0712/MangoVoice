@@ -4,14 +4,16 @@ Vercel expects the ASGI app exported as `app` from api/index.py.
 """
 import sys
 import os
+import time
 
 # Ensure backend package is on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 import orjson
+import numpy as np
 
 from backend.config import settings
 from backend.schemas import QueryResponse, HealthResponse, ErrorResponse
@@ -150,3 +152,139 @@ async def text_to_speech(body: dict):
             logger.warning("Sarvam TTS error: %s", exc)
             raise HTTPException(status_code=502, detail=str(exc))
 
+
+# ── Hardcoded multilingual test set for /api/benchmark ───────────────────────
+# 20 queries across English, Hindi, Hinglish — representative of real traffic.
+# Self-contained so the endpoint works on Railway without val_passages.jsonl.
+_BENCHMARK_QUERIES = [
+    # English — factual domain queries
+    "What is the capital of France?",
+    "How does photosynthesis work?",
+    "What causes earthquakes?",
+    "Who invented the telephone?",
+    "What is the speed of light?",
+    "How many bones are in the human body?",
+    "What is the boiling point of water?",
+    "Who wrote Romeo and Juliet?",
+    # Hindi — Devanagari queries
+    "भारत की राजधानी क्या है?",
+    "सूर्य से पृथ्वी की दूरी कितनी है?",
+    "महात्मा गांधी का जन्म कब हुआ था?",
+    "भारत में कितने राज्य हैं?",
+    # Hinglish — code-mixed queries (realistic voice input)
+    "Blood pressure normal range kya hota hai?",
+    "Diabetes ke symptoms kya hain?",
+    "India mein kitni official languages hain?",
+    "Oxygen ka atomic number kya hai?",
+    # Mixed factual — tests retrieval breadth
+    "What are the symptoms of malaria?",
+    "When did World War 2 end?",
+    "What is GDP and how is it measured?",
+    "How does the immune system fight viruses?",
+]
+
+
+@app.get("/api/benchmark")
+async def live_benchmark(
+    n: int = Query(default=20, ge=5, le=20, description="Number of queries to run (5–20)"),
+) -> dict:
+    """
+    Live benchmark endpoint — judges can verify MangoVoice latency numbers directly.
+
+    Runs n queries from a fixed multilingual test set (English, Hindi, Hinglish)
+    through the Benchmark A fast-path (extractive only — no Groq, so free-tier
+    quota is not consumed). Returns P50/P70/P100 latency breakdown per stage.
+
+    Example: GET /api/benchmark?n=20
+    """
+    from backend.retrieval.retriever import hybrid_retrieve
+    from backend.retrieval.confidence import should_generate
+    from backend.guardrails import normalize_text, layer1_check
+    from backend.fallback.extractive import extractive_fallback
+    from backend.grounding import verify_grounding_extractive
+
+    queries = _BENCHMARK_QUERIES[:n]
+    embed_ms_list, retr_ms_list, extr_ms_list, ground_ms_list, core_ms_list = [], [], [], [], []
+    statuses = []
+
+    for query in queries:
+        t_core = time.perf_counter()
+
+        normalized = normalize_text(query)
+        l1 = layer1_check(normalized)
+        if not l1.passed:
+            statuses.append("refused_l1")
+            core_ms_list.append((time.perf_counter() - t_core) * 1000)
+            embed_ms_list.append(0.0)
+            retr_ms_list.append(0.0)
+            extr_ms_list.append(0.0)
+            ground_ms_list.append(0.0)
+            continue
+
+        t0 = time.perf_counter()
+        retrieval_result, embedding_ms = await hybrid_retrieve(normalized)
+        retrieval_ms = (time.perf_counter() - t0) * 1000
+
+        if not should_generate(retrieval_result):
+            statuses.append("refused_low_confidence")
+            extr_ms = 0.0
+            ground_ms = 0.0
+        else:
+            sources = retrieval_result.sources
+
+            t0 = time.perf_counter()
+            fast_answer = extractive_fallback(sources, normalized, reason="benchmark")
+            extr_ms = (time.perf_counter() - t0) * 1000
+
+            t0 = time.perf_counter()
+            grounding = verify_grounding_extractive(fast_answer, sources)
+            ground_ms = (time.perf_counter() - t0) * 1000
+
+            statuses.append("answered" if grounding.passed else "refused_grounding")
+
+        core_ms = (time.perf_counter() - t_core) * 1000
+        embed_ms_list.append(embedding_ms)
+        retr_ms_list.append(retrieval_ms)
+        extr_ms_list.append(extr_ms)
+        ground_ms_list.append(ground_ms)
+        core_ms_list.append(core_ms)
+
+    def _stats(arr):
+        if not arr:
+            return {"p50_ms": 0.0, "p70_ms": 0.0, "p100_ms": 0.0, "mean_ms": 0.0}
+        a = np.array(arr)
+        return {
+            "p50_ms": round(float(np.percentile(a, 50)), 2),
+            "p70_ms": round(float(np.percentile(a, 70)), 2),
+            "p100_ms": round(float(np.percentile(a, 100)), 2),
+            "mean_ms": round(float(np.mean(a)), 2),
+        }
+
+    answered = statuses.count("answered")
+    return {
+        "benchmark": "A — Fast-path RAG (extractive, no LLM)",
+        "description": (
+            "normalize → guardrails → embed → retrieve → extractive → "
+            "grounding_extractive → response. Groq excluded (no free-tier quota consumed)."
+        ),
+        "n_queries": len(queries),
+        "query_languages": "English, Hindi, Hinglish",
+        "answer_rate": f"{answered}/{len(queries)}",
+        "stages": {
+            "embedding_fastembed": _stats(embed_ms_list),
+            "retrieval_lancedb_hybrid": _stats(retr_ms_list),
+            "extractive_answer": _stats(extr_ms_list),
+            "grounding_extractive": _stats(ground_ms_list),
+        },
+        "rag_core_total": _stats(core_ms_list),
+        "sla_target_ms": 200,
+        "sla_met": all(v <= 200 for v in core_ms_list),
+        "note_benchmark_b": (
+            "LLM-enhanced (Groq) latency: ~700-1500ms P50. "
+            "Run: python -m evaluation.latency_benchmark --mode b"
+        ),
+        "note_benchmark_c": (
+            "Voice E2E adds Sarvam STT (~300-800ms network round-trip), "
+            "always reported separately in LatencyMetrics.stt_ms."
+        ),
+    }

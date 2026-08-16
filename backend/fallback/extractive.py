@@ -1,12 +1,13 @@
 """
-MangoVoice — Extractive fallback.
+MangoVoice — Extractive fast-path answer.
 
-When Groq is unavailable or grounding fails twice:
+Primary response path (Phase 1 redesign):
 - Select the highest-confidence retrieved passage
 - Extract the best matching sentence(s) via keyword overlap
-- Return as an evidence-only answer
+- Return as the <200ms contractual answer
 
-This keeps the system useful even when generation fails.
+This is now the FIRST-CLASS answer, not a last resort.
+Confidence is set to 0.65 (credible extractive evidence).
 """
 from __future__ import annotations
 
@@ -41,11 +42,13 @@ def _best_sentence(passage: str, query: str) -> str:
 def extractive_fallback(
     sources: list[RetrievalSource],
     query: str,
-    reason: str = "generation_unavailable",
+    reason: str = "fast_path",
 ) -> GenerationResult:
     """
     Return the best extractive snippet from top sources.
-    Used as a last resort when generation / grounding repeatedly fails.
+
+    Primary fast path: called before any LLM invocation so the system
+    can return a grounded, verifiable answer in <200ms.
     """
     if not sources:
         return GenerationResult(
@@ -57,16 +60,15 @@ def extractive_fallback(
     snippet = _best_sentence(top.text, query)
 
     answer = (
-        f"I couldn't generate a full answer right now.\n\n"
-        f"The strongest evidence I found is:\n\n"
+        f'Based on the retrieved evidence:\n\n'
         f'"{snippet}"\n\n'
-        f"Source: {top.chunk_id} (score: {top.score:.2f})"
+        f"Source: {top.chunk_id}"
     )
 
     return GenerationResult(
         status="answered",
         answer=answer,
         cited_chunk_ids=[top.chunk_id],
-        confidence=0.35,  # low confidence — clearly extractive
+        confidence=0.65,  # credible extractive evidence — this is the primary response
         refusal_reason=None,
     )
