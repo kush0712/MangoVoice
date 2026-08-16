@@ -1,23 +1,22 @@
 import type { Metadata } from "next";
-import { Abril_Fatface, Bodoni_Moda, Space_Mono, Yatra_One } from "next/font/google";
+import { Bungee, Fredoka, Yatra_One } from "next/font/google";
 import "./globals.css";
 
-const abril = Abril_Fatface({
+const bungee = Bungee({
   subsets: ["latin"],
   weight: "400",
   variable: "--font-fatface",
   display: "swap",
 });
 
-const bodoni = Bodoni_Moda({
+const bungeeDisplay = Bungee({
   subsets: ["latin"],
-  weight: ["400", "700", "800", "900"],
-  style: ["normal", "italic"],
+  weight: "400",
   variable: "--font-display",
   display: "swap",
 });
 
-const spaceMono = Space_Mono({
+const fredoka = Fredoka({
   subsets: ["latin"],
   weight: ["400", "700"],
   variable: "--font-mono",
@@ -51,7 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${abril.variable} ${bodoni.variable} ${spaceMono.variable} ${yatraOne.variable}`}
+      className={`${bungee.variable} ${bungeeDisplay.variable} ${fredoka.variable} ${yatraOne.variable}`}
     >
       <body className="font-mono antialiased selection:bg-sunshine selection:text-forest">
         {children}

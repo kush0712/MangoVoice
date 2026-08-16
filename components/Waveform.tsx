@@ -45,7 +45,7 @@ export default function Waveform({ isActive, amplitude = 0.5, bars = 20 }: Wavef
           style={{
             width: "4px",
             height: "40px",
-            backgroundColor: isActive ? "#FFFFFF" : "rgba(255, 255, 255,0.25)",
+            backgroundColor: isActive ? "#FFFF00" : "rgba(255, 255, 0,0.25)",
             transform: "scaleY(0.15)",
             transformOrigin: "center",
             transition: "transform 120ms ease, background-color 300ms ease",

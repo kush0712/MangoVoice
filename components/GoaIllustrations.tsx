@@ -12,15 +12,15 @@ export function GoaTextileRibbon() {
         xmlns="http://www.w3.org/2000/svg"
       >
         <pattern id="goa-textile-pattern" width="80" height="24" patternUnits="userSpaceOnUse">
-          <polygon points="12,12 20,4 28,12 20,20" fill="#9333EA" />
-          <circle cx="20" cy="12" r="2.5" fill="#FEFBEA" />
-          <polygon points="52,12 60,4 68,12 60,20" fill="#8FC93A" />
-          <circle cx="60" cy="12" r="2.5" fill="#FEFBEA" />
-          <path d="M0 12h8 M32 12h16 M72 12h8" stroke="#FFFFFF" strokeWidth="1.5" />
-          <circle cx="40" cy="8" r="1.5" fill="#FFFFFF" />
-          <circle cx="40" cy="16" r="1.5" fill="#FFFFFF" />
-          <polygon points="0,0 80,0 80,2 0,2" fill="#FFFFFF" />
-          <polygon points="0,22 80,22 80,24 0,24" fill="#FFFFFF" />
+          <polygon points="12,12 20,4 28,12 20,20" fill="#FF0080" />
+          <circle cx="20" cy="12" r="2.5" fill="#00FFFF" />
+          <polygon points="52,12 60,4 68,12 60,20" fill="#00FFFF" />
+          <circle cx="60" cy="12" r="2.5" fill="#00FFFF" />
+          <path d="M0 12h8 M32 12h16 M72 12h8" stroke="#FFFF00" strokeWidth="1.5" />
+          <circle cx="40" cy="8" r="1.5" fill="#FFFF00" />
+          <circle cx="40" cy="16" r="1.5" fill="#FFFF00" />
+          <polygon points="0,0 80,0 80,2 0,2" fill="#FFFF00" />
+          <polygon points="0,22 80,22 80,24 0,24" fill="#FFFF00" />
         </pattern>
         <rect width="100%" height="24" fill="url(#goa-textile-pattern)" />
       </svg>
@@ -55,8 +55,8 @@ export function DevanagariOverlay({
     <div
       className="inline-flex items-center gap-2 px-5 py-1.5 rounded-full shadow-lg border-2 border-white select-none transition-transform hover:scale-105"
       style={{
-        backgroundColor: "#9333EA",
-        boxShadow: "0 0 20px rgba(147, 51, 234, 0.7), 3px 4px 0px rgba(0,0,0,0.3)",
+        backgroundColor: "#FF0080",
+        boxShadow: "0 0 20px rgba(255, 0, 128, 0.7), 3px 4px 0px rgba(0,0,0,0.3)",
       }}
     >
       <span className="font-hhg-devanagari text-2xl sm:text-3xl text-white font-bold tracking-wide">
@@ -76,8 +76,8 @@ export function DevanagariOverlay({
 
 // ── 3D Push Pin for Notice Board (Screenshot 3) ──────────────────────────────
 export function PushPin({ color = "pink" }: { color?: "pink" | "yellow" | "green" }) {
-  const bg = color === "pink" ? "#9333EA" : color === "yellow" ? "#FFFFFF" : "#8FC93A";
-  const border = color === "pink" ? "#7E22CE" : color === "yellow" ? "#FFFFFF" : "#000000";
+  const bg = color === "pink" ? "#FF0080" : color === "yellow" ? "#FFFF00" : "#00FFFF";
+  const border = color === "pink" ? "#D10074" : color === "yellow" ? "#FFFF00" : "#000000";
 
   return (
     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center select-none pointer-events-none">
@@ -120,7 +120,7 @@ export function GoaLeftPalmTree() {
       />
       <path
         d="M70 60 Q 95 10 140 -5 Q 115 35 70 60"
-        fill="#8FC93A"
+        fill="#00FFFF"
         stroke="#000000"
         strokeWidth="2"
       />
@@ -132,7 +132,7 @@ export function GoaLeftPalmTree() {
       />
       <path
         d="M70 60 Q 20 15 -20 5 Q 15 45 70 60"
-        fill="#8FC93A"
+        fill="#00FFFF"
         stroke="#000000"
         strokeWidth="2"
       />
@@ -142,8 +142,8 @@ export function GoaLeftPalmTree() {
         stroke="#000000"
         strokeWidth="2"
       />
-      <circle cx="66" cy="65" r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2" />
-      <circle cx="76" cy="63" r="6" fill="#9333EA" stroke="#000000" strokeWidth="2" />
+      <circle cx="66" cy="65" r="7" fill="#FFFF00" stroke="#000000" strokeWidth="2" />
+      <circle cx="76" cy="63" r="6" fill="#FF0080" stroke="#000000" strokeWidth="2" />
     </svg>
   );
 }
@@ -173,7 +173,7 @@ export function GoaRightPalmTree() {
         />
         <path
           d="M70 60 Q 95 10 140 -5 Q 115 35 70 60"
-          fill="#8FC93A"
+          fill="#00FFFF"
           stroke="#000000"
           strokeWidth="2"
         />
@@ -185,12 +185,12 @@ export function GoaRightPalmTree() {
         />
         <path
           d="M70 60 Q 20 15 -20 5 Q 15 45 70 60"
-          fill="#8FC93A"
+          fill="#00FFFF"
           stroke="#000000"
           strokeWidth="2"
         />
-        <circle cx="66" cy="65" r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2" />
-        <circle cx="76" cy="63" r="6" fill="#9333EA" stroke="#000000" strokeWidth="2" />
+        <circle cx="66" cy="65" r="7" fill="#FFFF00" stroke="#000000" strokeWidth="2" />
+        <circle cx="76" cy="63" r="6" fill="#FF0080" stroke="#000000" strokeWidth="2" />
       </g>
     </svg>
   );
@@ -200,14 +200,14 @@ export function GoaRightPalmTree() {
 export function GoaRisingSun() {
   return (
     <svg viewBox="0 0 300 150" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-72 h-36">
-      <line x1="150" y1="140" x2="150" y2="20" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <line x1="150" y1="140" x2="70" y2="40" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <line x1="150" y1="140" x2="230" y2="40" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <line x1="150" y1="140" x2="20" y2="90" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <line x1="150" y1="140" x2="280" y2="90" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <line x1="150" y1="140" x2="150" y2="20" stroke="#FFFF00" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <line x1="150" y1="140" x2="70" y2="40" stroke="#FFFF00" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <line x1="150" y1="140" x2="230" y2="40" stroke="#FFFF00" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <line x1="150" y1="140" x2="20" y2="90" stroke="#FFFF00" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <line x1="150" y1="140" x2="280" y2="90" stroke="#FFFF00" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
       <circle cx="150" cy="150" r="110" fill="#000000" opacity="0.5" />
-      <circle cx="150" cy="150" r="85" fill="#FFFFFF" />
-      <circle cx="150" cy="150" r="65" fill="#9333EA" opacity="0.2" />
+      <circle cx="150" cy="150" r="85" fill="#FFFF00" />
+      <circle cx="150" cy="150" r="65" fill="#FF0080" opacity="0.2" />
     </svg>
   );
 }
@@ -222,45 +222,45 @@ export function GoaBeachScenery() {
         xmlns="http://www.w3.org/2000/svg"
         className="w-full h-auto max-h-56 mx-auto"
       >
-        <path d="M0 200 C300 180 600 220 1200 190 L1200 240 L0 240 Z" fill="#E8DFB8" />
-        <path d="M0 215 C400 200 800 230 1200 210 L1200 240 L0 240 Z" fill="#FAF7DE" />
+        <path d="M0 200 C300 180 600 220 1200 190 L1200 240 L0 240 Z" fill="#1A1A80" />
+        <path d="M0 215 C400 200 800 230 1200 210 L1200 240 L0 240 Z" fill="#1A1A80" />
         <path d="M0 170 C400 150 800 185 1200 160 L1200 200 C600 220 300 180 0 200 Z" fill="#000000" opacity="0.4" />
 
         {/* Beach Shack */}
         <g transform="translate(480, 100)">
-          <polygon points="30,0 210,0 240,40 0,40" fill="#8FC93A" stroke="#000000" strokeWidth="3" />
-          <polygon points="40,-8 200,-8 215,0 25,0" fill="#FFFFFF" stroke="#000000" strokeWidth="2" />
-          <rect x="25" y="40" width="190" height="70" fill="#FEFBEA" stroke="#000000" strokeWidth="3" />
+          <polygon points="30,0 210,0 240,40 0,40" fill="#00FFFF" stroke="#000000" strokeWidth="3" />
+          <polygon points="40,-8 200,-8 215,0 25,0" fill="#FFFF00" stroke="#000000" strokeWidth="2" />
+          <rect x="25" y="40" width="190" height="70" fill="#00FFFF" stroke="#000000" strokeWidth="3" />
           <line x1="45" y1="40" x2="45" y2="110" stroke="#000000" strokeWidth="3" />
           <line x1="195" y1="40" x2="195" y2="110" stroke="#000000" strokeWidth="3" />
           <line x1="120" y1="40" x2="120" y2="110" stroke="#000000" strokeWidth="3" />
-          <rect x="60" y="12" width="120" height="20" rx="4" fill="#9333EA" stroke="#FEFBEA" strokeWidth="2" />
-          <text x="120" y="26" textAnchor="middle" fill="#FEFBEA" fontSize="10" fontWeight="bold" fontFamily="monospace">
+          <rect x="60" y="12" width="120" height="20" rx="4" fill="#FF0080" stroke="#00FFFF" strokeWidth="2" />
+          <text x="120" y="26" textAnchor="middle" fill="#00FFFF" fontSize="10" fontWeight="bold" fontFamily="monospace">
             MANGO SHACK
           </text>
         </g>
 
         {/* Beach Umbrellas */}
         <g transform="translate(240, 130)">
-          <path d="M10 50 A 45 45 0 0 1 90 50 Z" fill="#9333EA" stroke="#000000" strokeWidth="2.5" />
-          <path d="M35 50 A 45 45 0 0 1 65 50 Z" fill="#FFFFFF" />
+          <path d="M10 50 A 45 45 0 0 1 90 50 Z" fill="#FF0080" stroke="#000000" strokeWidth="2.5" />
+          <path d="M35 50 A 45 45 0 0 1 65 50 Z" fill="#FFFF00" />
           <line x1="50" y1="50" x2="50" y2="90" stroke="#000000" strokeWidth="3" />
         </g>
 
         <g transform="translate(860, 135)">
-          <path d="M10 50 A 45 45 0 0 1 90 50 Z" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
-          <path d="M35 50 A 45 45 0 0 1 65 50 Z" fill="#8FC93A" />
+          <path d="M10 50 A 45 45 0 0 1 90 50 Z" fill="#FFFF00" stroke="#000000" strokeWidth="2.5" />
+          <path d="M35 50 A 45 45 0 0 1 65 50 Z" fill="#00FFFF" />
           <line x1="50" y1="50" x2="50" y2="85" stroke="#000000" strokeWidth="3" />
         </g>
 
         {/* Surfboards */}
         <g transform="translate(180, 150) rotate(-15)">
-          <path d="M0 0 C10 -25 15 -25 25 0 L22 70 C12 75 8 75 0 70 Z" fill="#9333EA" stroke="#000000" strokeWidth="2" />
-          <line x1="12" y1="-10" x2="12" y2="65" stroke="#FFFFFF" strokeWidth="2" />
+          <path d="M0 0 C10 -25 15 -25 25 0 L22 70 C12 75 8 75 0 70 Z" fill="#FF0080" stroke="#000000" strokeWidth="2" />
+          <line x1="12" y1="-10" x2="12" y2="65" stroke="#FFFF00" strokeWidth="2" />
         </g>
         <g transform="translate(200, 155) rotate(10)">
-          <path d="M0 0 C10 -25 15 -25 25 0 L22 70 C12 75 8 75 0 70 Z" fill="#FFFFFF" stroke="#000000" strokeWidth="2" />
-          <line x1="12" y1="-10" x2="12" y2="65" stroke="#8FC93A" strokeWidth="2" />
+          <path d="M0 0 C10 -25 15 -25 25 0 L22 70 C12 75 8 75 0 70 Z" fill="#FFFF00" stroke="#000000" strokeWidth="2" />
+          <line x1="12" y1="-10" x2="12" y2="65" stroke="#00FFFF" strokeWidth="2" />
         </g>
       </svg>
     </div>

@@ -259,7 +259,7 @@ export default function Home() {
               fontSize: "clamp(3.2rem, 10vw, 7.5rem)",
               lineHeight: 0.95,
               textShadow: "4px 6px 0px #000000, 8px 12px 0px rgba(0,0,0,0.3)",
-              color: "#FFFFFF",
+              color: "#FFFF00",
             }}
           >
             MANGO VOICE
