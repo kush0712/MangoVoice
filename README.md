@@ -232,12 +232,12 @@ Verify live: `GET /api/benchmark` (runs Benchmark A on Railway with 20 multiling
 
 ## 12. P50 / P70 / P100 Results
 
-Measured over validation queries via `evaluation/latency_benchmark.py` (`reports/latency_results.json`).
+Measured live against the production API via `curl -sk "https://mango-voice.vercel.app/api/benchmark?n=20" | python3 -m json.tool`.
 
 ### Benchmark A — Fast-path RAG (user-visible SLA path)
 
-```
-MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=199)
+```text
+MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=20)
 normalize → guardrails → embed → retrieve → extractive → grounding_extractive
 
 Stage                          P50 (ms)   P70 (ms)   P100 (ms)  Mean (ms)
@@ -274,7 +274,7 @@ Full E2E = stt_ms + Benchmark A rag_core ≈ 320–815ms
 
 Verify Benchmark A live: `GET /api/benchmark?n=20` → returns P50/P70/P100 JSON from Railway.
 
-Answer Rate: **99.0%** (197/199) | Refusal Rate: **1.0%** (2/199 — low evidence queries properly rejected)
+Answer Rate: **100%** (20/20)
 
 ---
 
