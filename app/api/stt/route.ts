@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "SARVAM_API_KEY is not configured on Vercel" }, { status: 500 });
     }
 
-    const sttReq = await fetch("https://api.sarvam.ai/speech-to-text-translate", {
+    const sttReq = await fetch("https://api.sarvam.ai/speech-to-text", {
       method: "POST",
       headers: {
         "api-subscription-key": sarvamKey,
