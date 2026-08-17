@@ -81,17 +81,43 @@ export async function queryAudio(
 
   try {
     const t0 = performance.now();
-    const sttRes = await fetch(`/api/stt`, {
-      method: "POST",
-      body: formData,
-    });
+    let sttData: { transcript: string; language: string };
     
-    if (!sttRes.ok) {
-      const errText = await sttRes.text();
-      throw new Error(`STT Edge Error: ${errText}`);
-    }
+    const directKey = process.env.NEXT_PUBLIC_SARVAM_API_KEY;
+    if (directKey) {
+      // 🚀 NUCLEAR OPTION: Bypassing Vercel Serverless completely.
+      // Browser talks directly to Sarvam for 0ms cold-start and absolute minimum latency.
+      const sarvamFormData = new FormData();
+      sarvamFormData.append("file", audioBlob, filename);
+      sarvamFormData.append("model", "saaras:v3");
+      sarvamFormData.append("with_timestamps", "false");
+      sarvamFormData.append("with_disfluencies", "false");
+      sarvamFormData.append("language_code", language === "auto" ? "unknown" : language);
 
-    const sttData = await sttRes.json();
+      const sarvamRes = await fetch("https://api.sarvam.ai/speech-to-text", {
+        method: "POST",
+        headers: { "api-subscription-key": directKey },
+        body: sarvamFormData,
+      });
+
+      if (!sarvamRes.ok) {
+        const errText = await sarvamRes.text();
+        throw new Error(`Direct Sarvam Error: ${errText}`);
+      }
+      const rawJson = await sarvamRes.json();
+      sttData = { transcript: rawJson.transcript, language: rawJson.language_code };
+    } else {
+      // Fallback to Vercel Serverless if they haven't set the NEXT_PUBLIC key yet
+      const sttRes = await fetch(`/api/stt`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!sttRes.ok) {
+        const errText = await sttRes.text();
+        throw new Error(`STT Edge Error: ${errText}`);
+      }
+      sttData = await sttRes.json();
+    }
     const stt_ms = performance.now() - t0;
     
     if (!sttData.transcript) {
