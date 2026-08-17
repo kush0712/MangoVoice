@@ -17,7 +17,7 @@ MangoVoice is a voice-first, grounded RAG system over [`ai4bharat/MSMARCO-XI`](h
 3. 🔎 LanceDB hybrid retrieval (dense ANN + BM25 + RRF) finds evidence — dense and BM25 run concurrently in a thread pool
 4. 🛡 4-layer guardrail system checks safety and confidence at every stage
 5. ⚡ Extractive fast-path answer — best-matching sentence from top source, grounded and returned in **<50ms P50 RAG core** (no LLM on the critical path)
-6. 🧠 Groq (llama-3.1-8b-instant) fires as a background task (fire-and-forget, result discarded) — never blocks the response
+6. 🧠 Groq (openai/gpt-oss-20b) fires as a background task (fire-and-forget, result discarded) — never blocks the response
 7. ⚡ Lightweight grounding verifier ensures the extractive answer cites real evidence (citation check + entity/number overlap, ~0ms)
 8. 🔊 Sarvam Bulbul v2 TTS reads the answer aloud in the detected language (Hindi/English)
 9. ✅ You see the answer + cited sources + `answer_source` tag + per-stage latency breakdown
@@ -53,7 +53,7 @@ FastAPI Python API on Railway (Docker)
   │       └── Unsafe content regex (CSAM, weapons, self-harm, hacking)
   │
   ├── [PARALLEL] Layer 2 safety + Hybrid retrieval
-  │     ├── L2: Groq Llama Prompt Guard 2 (meta-llama/llama-prompt-guard-2-86m)
+  │     ├── L2: Groq Llama Prompt Guard 2 (meta-llama/llama-prompt-guard-2-22m)
   │     │       timeout 3s, fail-open (L1 already ran)
   │     └── Retrieval:
   │           ├── FastEmbed/ONNX query embedding (LRU-cached, ~2.8ms P50)
@@ -113,8 +113,8 @@ The frontend uses all four endpoints: health polling (30s interval), audio query
 | Embedding model | `paraphrase-multilingual-MiniLM-L12-v2` | 384-dim, Hindi/English/Hinglish |
 | Vector DB | **LanceDB OSS embedded** | Local, BM25+ANN, zero cost |
 | Hybrid search | Dense ANN top-20 + BM25 top-20 + RRF (k=60) → top-8 | Best of semantic + lexical |
-| Generation | **Groq llama-3.1-8b-instant** | Fast, free tier |
-| Safety model | **Groq meta-llama/llama-prompt-guard-2-86m** | Dedicated prompt guard |
+| Generation | **Groq openai/gpt-oss-20b** | Fast, free tier |
+| Safety model | **Groq meta-llama/llama-prompt-guard-2-22m** | Dedicated prompt guard |
 | Output format | Tool-contract (`answer_from_context` / `refuse`) | Structured, refusal-first |
 | Schemas | Pydantic v2 | Every stage typed, no raw dicts |
 | Retries | Tenacity | Bounded (max 2 attempts), never infinite |
@@ -195,7 +195,7 @@ Dense handles semantic paraphrases; BM25 handles exact names, numbers, acronyms.
 | Layer | What it does | Threshold / Model |
 |-------|-------------|-------------------|
 | **L1 Deterministic** | Unicode NFC normalize + length cap (512 chars) + 15-pattern injection regex + unsafe content regex | ~0ms, every query |
-| **L2 Prompt Guard** | Groq `meta-llama/llama-prompt-guard-2-86m` classification | Parallel with retrieval, timeout 3s, fail-open |
+| **L2 Prompt Guard** | Groq `meta-llama/llama-prompt-guard-2-22m` classification | Parallel with retrieval, timeout 3s, fail-open |
 | **L3 Confidence Gate** | `confidence = 0.70 × norm_dense_sim + 0.20 × cross_modal_agree + 0.10 × count_bonus`. Threshold: 0.18. Borderline: requires cross-modal agreement + ≥2 sources. | After retrieval |
 | **L4 Grounding Verifier (extractive)** | Citation existence + entity/number overlap. Score = overlap ≥ 0.40. ~0ms (no embedding). | After extractive answer |
 
@@ -286,8 +286,8 @@ Answer Rate: **100%** (20/20)
 | Sarvam Bulbul v2 TTS | **Paid** |
 | FastEmbed embeddings | $0 (local ONNX) |
 | LanceDB vector DB | $0 (embedded) |
-| Groq llama-3.1-8b-instant (generation) | $0 (free tier) |
-| Groq llama-prompt-guard-2-86m (safety) | $0 (free tier) |
+| Groq openai/gpt-oss-20b (generation) | $0 (free tier) |
+| Groq llama-prompt-guard-2-22m (safety) | $0 (free tier) |
 | Vercel Hobby (frontend) | $0 |
 | Railway (backend Docker) | ~$5/mo hobby plan |
 | GitHub Releases (index storage) | $0 |

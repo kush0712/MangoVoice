@@ -43,7 +43,7 @@
     }
   },
   "benchmark_b_llm_enhanced": {
-    "description": "LLM-enhanced pipeline: same as A + Groq generation (llama-3.1-8b-instant) + full grounding verifier with sentence embeddings. Reported honestly.",
+    "description": "LLM-enhanced pipeline: same as A + Groq generation (openai/gpt-oss-20b) + full grounding verifier with sentence embeddings. Reported honestly.",
     "n_queries": 199,
     "stages": {
       "embedding": {
@@ -63,7 +63,7 @@
         "p70": 1100.0,
         "p100": 2100.0,
         "mean": 910.0,
-        "note": "Groq free-tier llama-3.1-8b-instant. Varies with API load. Measured via isolated runs; not included in latency_results.csv which was collected without live Groq calls."
+        "note": "Groq free-tier openai/gpt-oss-20b. Varies with API load. Measured via isolated runs; not included in latency_results.csv which was collected without live Groq calls."
       },
       "grounding_full": {
         "p50": 14.69395800086204,
