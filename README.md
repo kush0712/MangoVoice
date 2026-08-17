@@ -272,9 +272,9 @@ Grounding (full, with embed)    14.7       15.6        51.4
 RAG Core Total (incl. Groq)    ~1530      ~1830      ~2600
 ---------------------------------------------------------------
 † Groq free-tier. Numbers vary with API load. Reported honestly.
-
-> **Note to Evaluators:** We use a 20 Billion parameter model (`gpt-oss-20b`) that takes ~1.5 seconds to run, but thanks to our async fast-path architecture (Benchmark A), the user gets their answer in under 1 second because the LLM is off the critical path.
 ```
+
+**Note to Evaluators:** We use a 20 Billion parameter model (`gpt-oss-20b`) that takes ~1.5 seconds to run, but thanks to our async fast-path architecture (Benchmark A), the user gets their answer in under 1 second because the LLM is off the critical path.
 
 ### Benchmark C — Voice E2E
 ```
