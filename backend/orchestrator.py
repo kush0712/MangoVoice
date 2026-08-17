@@ -92,12 +92,11 @@ async def _background_safety_check(text: str) -> None:
 
 
 async def orchestrate_query(
-    audio_bytes: Optional[bytes] = None,
-    transcript_text: Optional[str] = None,
+    transcript_text: str,
     language: str = "auto",
 ) -> QueryResponse:
     """
-    Full RAG pipeline from audio/text to structured answer.
+    Full RAG pipeline from transcript text to structured answer.
     Returns the extractive fast-path answer in <200ms.
     Groq fires in the background (fire-and-forget, result discarded).
     """
@@ -108,33 +107,10 @@ async def orchestrate_query(
     def elapsed_ms() -> float:
         return (time.perf_counter() - t_start) * 1000
 
-    # ── Stage 1: STT ──────────────────────────────────────────────────────────
-    transcript = None
+    # ── Stage 1: Input provided from Edge ────────────────────────────────────
+    transcript = transcript_text
     detected_lang = language
-
-    if transcript_text:
-        # Text input path (demo queries / text endpoint)
-        transcript = transcript_text
-        latency.stt_ms = 0.0
-    else:
-        # Audio path → Sarvam STT
-        from backend.stt import transcribe, STTError
-        t_stt = time.perf_counter()
-        try:
-            stt_result = await transcribe(audio_bytes, language)
-            transcript = stt_result.text
-            detected_lang = stt_result.language or language
-            latency.stt_ms = (time.perf_counter() - t_stt) * 1000
-        except STTError as exc:
-            latency.stt_ms = (time.perf_counter() - t_stt) * 1000
-            latency.full_e2e_ms = elapsed_ms()
-            return QueryResponse(
-                request_id=request_id,
-                status=PipelineStatus.ERROR,
-                refusal_reason=exc.reason,
-                refusal_message=exc.message,
-                latency=latency,
-            )
+    latency.stt_ms = 0.0
 
     # ── Stage 2: Input normalization ─────────────────────────────────────────
     t_norm = time.perf_counter()

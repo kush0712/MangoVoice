@@ -63,32 +63,6 @@ async def health() -> HealthResponse:
     )
 
 
-@app.post("/api/query", response_model=QueryResponse)
-async def query(
-    audio: UploadFile = File(...),
-    language: str = Form(default="auto"),
-) -> QueryResponse:
-    """
-    Main RAG pipeline endpoint.
-    Accepts audio upload, returns grounded answer + sources + latency.
-    """
-    # --- Input validation ---
-    if audio.size and audio.size > settings.max_audio_bytes:
-        raise HTTPException(status_code=413, detail="Audio file too large")
-
-    content_type = (audio.content_type or "").lower()
-    if not any(ct in content_type for ct in ("audio", "octet-stream", "webm", "wav", "ogg", "mp4", "m4a", "aac", "opus")):
-        logger.warning("Unexpected content_type: %s", content_type)
-
-
-    audio_bytes = await audio.read()
-    if len(audio_bytes) == 0:
-        raise HTTPException(status_code=400, detail="Empty audio payload")
-
-    result = await orchestrate_query(audio_bytes=audio_bytes, language=language)
-    return result
-
-
 @app.post("/api/query/text", response_model=QueryResponse)
 async def query_text(body: dict) -> QueryResponse:
     """
