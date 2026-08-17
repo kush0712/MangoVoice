@@ -53,7 +53,6 @@ def get_stt_client() -> httpx.AsyncClient:
     global _http_client
     if _http_client is None or _http_client.is_closed:
         _http_client = httpx.AsyncClient(
-            http2=True,
             timeout=settings.sarvam_timeout,
             limits=httpx.Limits(max_keepalive_connections=10, keepalive_expiry=60.0),
         )
