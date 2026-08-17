@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "edge";
-export const preferredRegion = ["bom1", "sin1", "hnd1"]; // Favor Asian regions
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
