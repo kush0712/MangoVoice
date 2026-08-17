@@ -123,9 +123,10 @@ async def layer2_prompt_guard(text: str) -> GuardrailResult:
         from groq import AsyncGroq
         client = AsyncGroq(api_key=settings.groq_api_key)
 
-        # Llama Prompt Guard 2: classify the user message
+        # Llama Prompt Guard 2 22M: still active on Groq, lower-latency variant.
+        # 86M was deprecated Aug 2026 — 22M provides same jailbreak/injection detection.
         chat_resp = await client.chat.completions.create(
-            model="meta-llama/llama-prompt-guard-2-86m",
+            model="meta-llama/llama-prompt-guard-2-22m",
             messages=[
                 {"role": "user", "content": text},
             ],
