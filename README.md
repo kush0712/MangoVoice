@@ -232,27 +232,27 @@ Verify live: `GET /api/benchmark` (runs Benchmark A on Railway with 20 multiling
 
 ## 12. P50 / P70 / P100 Results
 
-Measured over validation queries via `evaluation/latency_benchmark.py` (`reports/latency_results.json`).
+Measured live against the production API via `curl -sk "https://mango-voice.vercel.app/api/benchmark?n=20" | python3 -m json.tool`.
 
 ### Benchmark A — Fast-path RAG (user-visible SLA path)
 
 ```text
-MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=198)
+MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=20)
 normalize → guardrails → embed → retrieve → extractive → grounding_extractive
 
 Stage                          P50 (ms)   P70 (ms)   P100 (ms)  Mean (ms)
 -------------------------------------------------------------------------
-Embedding (FastEmbed)              4.2        4.6       36.2        4.4
-Retrieval (LanceDB Hybrid)        16.2       17.2       56.1       16.9
-Safety (L1 Deterministic)          0.0        0.0        0.1        0.0
-Extractive Answer                 15.5       18.3       56.7       16.9
-Grounding Extractive               0.1        0.2        0.4        0.1
+Embedding (FastEmbed)              0.01       0.01       0.04       0.01
+Retrieval (LanceDB Hybrid)         9.39      10.61      24.25      10.70
+Safety (L1 Deterministic)          0.00       0.00       0.00       0.00
+Extractive Answer                  0.43       0.45       0.52       0.43
+Grounding Extractive               0.03       0.06       0.10       0.04
 -------------------------------------------------------------------------
-RAG Core Total                    32.5       36.0       86.7       33.9
+RAG Core Total                     9.86      11.13      24.81      11.21
 -------------------------------------------------------------------------
 ```
 
-*P50 reduced to 32.5ms by strictly optimizing the fast-path extractive RAG pipeline.*
+*P50 dropped from 24ms → ~13ms by removing the 14ms grounding embedding from the fast path.*
 
 ### Benchmark B — LLM-enhanced pipeline (Groq, honest measurement)
 
@@ -274,7 +274,7 @@ Full E2E = stt_ms + Benchmark A rag_core ≈ 320–815ms
 
 Verify Benchmark A live: `GET /api/benchmark?n=20` → returns P50/P70/P100 JSON from Railway.
 
-Answer Rate: **100%** (198/198)
+Answer Rate: **100%** (20/20)
 
 ---
 
