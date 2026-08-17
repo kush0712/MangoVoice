@@ -48,7 +48,8 @@ export interface HealthResponse {
   embedder_ready: boolean;
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+const RAW_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+const BASE = RAW_BASE.endsWith("/") ? RAW_BASE.slice(0, -1) : RAW_BASE;
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -88,7 +89,7 @@ export async function queryAudio(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error(`Unable to connect to backend server (proxied via /api/query). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
+        throw new Error(`Unable to connect to backend server. Cross-Origin Request Failed. Please ensure NEXT_PUBLIC_API_BASE is set correctly in Vercel and ALLOWED_ORIGINS is set to https://mango-voice.vercel.app in Railway.`);
       }
       throw err;
     }
@@ -111,7 +112,7 @@ export async function queryText(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error(`Unable to connect to backend server (proxied via /api/query/text). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
+        throw new Error(`Unable to connect to backend server. Cross-Origin Request Failed. Please ensure NEXT_PUBLIC_API_BASE is set correctly in Vercel and ALLOWED_ORIGINS is set to https://mango-voice.vercel.app in Railway.`);
       }
       throw err;
     }
