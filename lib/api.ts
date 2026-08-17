@@ -80,8 +80,7 @@ export async function queryAudio(
   formData.append("language", language);
 
   try {
-    const targetUrl = BASE ? `${BASE}/api/query` : `/api/query`;
-    const res = await fetch(targetUrl, {
+    const res = await fetch(`/api/query`, {
       method: "POST",
       body: formData,
     });
@@ -89,7 +88,7 @@ export async function queryAudio(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error(`Unable to connect to backend server. Cross-Origin Request Failed. Please ensure NEXT_PUBLIC_API_BASE is set correctly in Vercel and ALLOWED_ORIGINS is set to https://mango-voice.vercel.app in Railway.`);
+        throw new Error(`Unable to connect to backend server (proxied via /api/query). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
       }
       throw err;
     }
@@ -102,8 +101,7 @@ export async function queryText(
   language: string = "auto"
 ): Promise<QueryResponse> {
   try {
-    const targetUrl = BASE ? `${BASE}/api/query/text` : `/api/query/text`;
-    const res = await fetch(targetUrl, {
+    const res = await fetch(`/api/query/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, language }),
@@ -112,7 +110,7 @@ export async function queryText(
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error(`Unable to connect to backend server. Cross-Origin Request Failed. Please ensure NEXT_PUBLIC_API_BASE is set correctly in Vercel and ALLOWED_ORIGINS is set to https://mango-voice.vercel.app in Railway.`);
+        throw new Error(`Unable to connect to backend server (proxied via /api/query/text). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
       }
       throw err;
     }
@@ -121,8 +119,7 @@ export async function queryText(
 }
 
 export async function checkHealth(): Promise<HealthResponse> {
-  const targetUrl = BASE ? `${BASE}/api/health` : `/api/health`;
-  const res = await fetch(targetUrl, { cache: "no-store" });
+  const res = await fetch(`/api/health`, { cache: "no-store" });
   return handleResponse<HealthResponse>(res);
 }
 
