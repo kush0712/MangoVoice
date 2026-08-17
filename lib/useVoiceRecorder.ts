@@ -146,7 +146,7 @@ export function useVoiceRecorder({
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
 
-      recorder.start(250); // collect in 250ms chunks
+      recorder.start(100); // collect in 100ms chunks — reduces tail latency on stop
       isRecordingRef.current = true;
       setIsRecording(true);
 

@@ -18,4 +18,6 @@ exec uvicorn api.index:app \
     --host 0.0.0.0 \
     --port "$PORT" \
     --workers 1 \
-    --log-level info
+    --loop uvloop \
+    --http httptools \
+    --log-level warning
