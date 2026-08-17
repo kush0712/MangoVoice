@@ -103,7 +103,7 @@ export async function queryAudio(
         transcript: null,
         language: null,
         answer: null,
-        answer_source: null,
+        grounding_score: null,
         confidence: "refused",
         confidence_score: 0,
         sources: [],
