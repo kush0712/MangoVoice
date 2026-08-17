@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+export const maxDuration = 30; // keep warm as long as possible (Hobby tier max)
 
 export async function POST(req: Request) {
   try {
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     });
 
   } catch (err: any) {
-    console.error("Vercel Edge STT Error:", err);
+    console.error("Vercel STT Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
