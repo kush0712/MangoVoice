@@ -80,15 +80,54 @@ export async function queryAudio(
   formData.append("language", language);
 
   try {
-    const res = await fetch(`/api/query`, {
+    const t0 = performance.now();
+    const sttRes = await fetch(`/api/stt`, {
       method: "POST",
       body: formData,
     });
-    return await handleResponse<QueryResponse>(res);
+    
+    if (!sttRes.ok) {
+      const errText = await sttRes.text();
+      throw new Error(`STT Edge Error: ${errText}`);
+    }
+
+    const sttData = await sttRes.json();
+    const stt_ms = performance.now() - t0;
+    
+    if (!sttData.transcript) {
+      return {
+        request_id: "error",
+        status: "error",
+        refusal_reason: "stt_failed",
+        refusal_message: "Could not transcribe the recording. Please try again.",
+        transcript: null,
+        language: null,
+        answer: null,
+        answer_source: null,
+        confidence: "refused",
+        confidence_score: 0,
+        sources: [],
+        latency: { stt_ms, retrieval_ms: 0, llm_ms: 0, grounding_ms: 0, full_e2e_ms: stt_ms }
+      };
+    }
+
+    // Pass the transcript to the RAG backend via the proxy
+    const ragRes = await queryText(sttData.transcript, sttData.language || language);
+    
+    // Inject the STT latency and update the full E2E latency
+    if (ragRes.latency) {
+      ragRes.latency.stt_ms = stt_ms;
+      ragRes.latency.full_e2e_ms = stt_ms + ragRes.latency.full_e2e_ms;
+    }
+    
+    // Pass the actual language detected by the Edge function
+    ragRes.language = sttData.language || ragRes.language;
+    return ragRes;
+
   } catch (err: unknown) {
     if (err instanceof Error) {
       if (err.message.includes("Load failed") || err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
-        throw new Error(`Unable to connect to backend server (proxied via /api/query). If in development, verify it's running on http://127.0.0.1:8000. In production, check NEXT_PUBLIC_API_BASE in Vercel.`);
+        throw new Error(`Unable to connect to STT Edge Server. Please ensure you are connected to the internet.`);
       }
       throw err;
     }
