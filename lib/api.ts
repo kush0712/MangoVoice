@@ -79,7 +79,8 @@ export async function queryAudio(
   formData.append("language", language);
 
   try {
-    const res = await fetch(`/api/query`, {
+    const targetUrl = BASE ? `${BASE}/api/query` : `/api/query`;
+    const res = await fetch(targetUrl, {
       method: "POST",
       body: formData,
     });
@@ -100,7 +101,8 @@ export async function queryText(
   language: string = "auto"
 ): Promise<QueryResponse> {
   try {
-    const res = await fetch(`/api/query/text`, {
+    const targetUrl = BASE ? `${BASE}/api/query/text` : `/api/query/text`;
+    const res = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, language }),
@@ -118,7 +120,8 @@ export async function queryText(
 }
 
 export async function checkHealth(): Promise<HealthResponse> {
-  const res = await fetch(`/api/health`, { cache: "no-store" });
+  const targetUrl = BASE ? `${BASE}/api/health` : `/api/health`;
+  const res = await fetch(targetUrl, { cache: "no-store" });
   return handleResponse<HealthResponse>(res);
 }
 

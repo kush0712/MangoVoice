@@ -47,6 +47,18 @@ def _detect_audio_format(audio_bytes: bytes) -> tuple[str, str]:
     return "audio.webm", "audio/webm"
 
 
+_http_client: httpx.AsyncClient | None = None
+
+def get_stt_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            http2=True,
+            timeout=settings.sarvam_timeout,
+            limits=httpx.Limits(max_keepalive_connections=10, keepalive_expiry=60.0),
+        )
+    return _http_client
+
 @retry(
     stop=stop_after_attempt(2),
     wait=wait_fixed(0.5),
@@ -74,15 +86,15 @@ async def _call_sarvam(audio_bytes: bytes, language: str) -> dict:
         # (transcribes English as English text, Hindi as Hindi text, Hinglish as codemixed)
         data["language_code"] = "unknown"
 
-    async with httpx.AsyncClient(timeout=settings.sarvam_timeout) as client:
-        resp = await client.post(
-            SARVAM_STT_URL,
-            files=files,
-            data=data,
-            headers={"api-subscription-key": settings.sarvam_api_key},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    client = get_stt_client()
+    resp = await client.post(
+        SARVAM_STT_URL,
+        files=files,
+        data=data,
+        headers={"api-subscription-key": settings.sarvam_api_key},
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
 

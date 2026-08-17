@@ -48,7 +48,7 @@ function getBestSupportedMimeType(): string | undefined {
 
 export function useVoiceRecorder({
   maxSeconds = 25,
-  silenceTimeout = 2500,
+  silenceTimeout = 900,
   silenceThreshold = 0.02,
   onAmplitude,
 }: UseVoiceRecorderOptions = {}): UseVoiceRecorderReturn {
