@@ -12,8 +12,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing audio payload" }, { status: 400 });
     }
 
+    // Force explicit MIME type because Next.js req.formData() sometimes parses it as application/octet-stream
+    const audioBuffer = await audio.arrayBuffer();
+    const cleanAudio = new File([audioBuffer], "audio.webm", { type: "audio/webm" });
+
     const sarvamFormData = new FormData();
-    sarvamFormData.append("file", audio, "audio.webm");
+    sarvamFormData.append("file", cleanAudio);
     sarvamFormData.append("model", "saaras:v3");
     sarvamFormData.append("with_timestamps", "false");
     sarvamFormData.append("with_disfluencies", "false");
@@ -38,9 +42,14 @@ export async function POST(req: Request) {
     });
 
     if (!sttReq.ok) {
-      const err = await sttReq.text();
-      console.error("Sarvam STT Error:", err);
-      return NextResponse.json({ error: `Sarvam API error: ${sttReq.status}` }, { status: 500 });
+      const errText = await sttReq.text();
+      console.error("Sarvam STT Error:", errText);
+      try {
+        const errJson = JSON.parse(errText);
+        return NextResponse.json({ error: `Sarvam API error: ${errJson.error?.message || errText}` }, { status: 500 });
+      } catch {
+        return NextResponse.json({ error: `Sarvam API error: ${errText}` }, { status: 500 });
+      }
     }
 
     const sttResult = await sttReq.json();
