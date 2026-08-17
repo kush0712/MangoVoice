@@ -107,7 +107,17 @@ export async function queryAudio(
         confidence: "refused",
         confidence_score: 0,
         sources: [],
-        latency: { stt_ms, retrieval_ms: 0, llm_ms: 0, grounding_ms: 0, full_e2e_ms: stt_ms }
+        latency: { 
+          stt_ms, 
+          normalization_ms: 0,
+          embedding_ms: 0,
+          retrieval_ms: 0, 
+          safety_ms: 0,
+          generation_ms: 0, 
+          grounding_ms: 0, 
+          rag_core_ms: 0,
+          full_e2e_ms: stt_ms 
+        }
       };
     }
 

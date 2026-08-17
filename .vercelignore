@@ -2,7 +2,7 @@
 # The Python FastAPI backend runs on Railway — exclude it entirely from Vercel.
 
 # Python backend source
-api/
+/api/
 backend/
 ingestion/
 
