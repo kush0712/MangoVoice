@@ -195,7 +195,7 @@ export default function TaskStudioCard({
             {/* Description */}
             <p className="mt-3 text-xs sm:text-sm font-hhg-mono leading-relaxed text-ink/80">
               Speak your question and get a verifiable, strictly grounded answer. MangoVoice
-              connects Sarvam Saaras v3 STT, LanceDB hybrid retrieval, and Groq Llama 3.1
+              connects Sarvam Saaras v3 STT, LanceDB hybrid retrieval, and Groq GPT-OSS 20B
               into a sub-200ms, hallucination-free pipeline.
             </p>
           </div>
@@ -206,7 +206,7 @@ export default function TaskStudioCard({
               "Real speech-to-text input via Sarvam Saaras v3 with Indic codemix support",
               "Hybrid retrieval blending 384-dim multilingual vectors + BM25 via RRF",
               "Sub-200ms RAG core target for ultra-responsive voice interactions",
-              "Groq Llama 3.1 tool-contract generation with strict refusal on low evidence",
+              "Groq GPT-OSS 20B tool-contract generation with strict refusal on low evidence",
               "4-Layer safety guardrails + sentence-level factual grounding verification",
               "Trained and benchmarked over ai4bharat/MSMARCO-XI multilingual dataset",
             ].map((bullet, idx) => (

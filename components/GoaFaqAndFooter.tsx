@@ -7,7 +7,7 @@ import { GoaFloralDivider, GoaBeachScenery, GoaTextileRibbon } from "./GoaIllust
 const FAQS_DATA = [
   {
     q: "How does MangoVoice achieve sub-200ms RAG core latency?",
-    a: "We avoid multi-second Python framework overhead (like LangChain) by running a zero-dependency async pipeline. Query embeddings are generated locally via FastEmbed ONNX (~12ms), ANN search runs in-process via embedded LanceDB (~8ms), and Groq Llama 3.1 8B Instant generates concise grounded responses (~65ms) via tool contracts.",
+    a: "We avoid multi-second Python framework overhead (like LangChain) by running a zero-dependency async pipeline. Query embeddings are generated locally via FastEmbed ONNX (~12ms), ANN search runs in-process via embedded LanceDB (~8ms), and Groq GPT-OSS 20B generates concise grounded responses (~65ms) via tool contracts.",
   },
   {
     q: "How does MangoVoice handle Hindi, English, and Hinglish codemix?",
@@ -19,7 +19,7 @@ const FAQS_DATA = [
   },
   {
     q: "How does the system prevent hallucinations and prompt injection?",
-    a: "We implement 4 distinct guardrail layers: Layer 1 (deterministic regex for jailbreak patterns), Layer 2 (Llama Guard 3 safety classifier), Layer 3 (calibrated confidence gate that refuses low-evidence queries), and Layer 4 (post-generation sentence-level cosine similarity + entity overlap verifier).",
+    a: "We implement 4 distinct guardrail layers: Layer 1 (deterministic regex for jailbreak patterns), Layer 2 (Llama Prompt Guard 2 22M safety classifier), Layer 3 (calibrated confidence gate that refuses low-evidence queries), and Layer 4 (post-generation sentence-level cosine similarity + entity overlap verifier).",
   },
   {
     q: "What happens if the question is off-topic or unanswerable?",
@@ -144,7 +144,7 @@ export default function GoaFaqAndFooter() {
             <span className="px-2.5 py-1 rounded-full border border-cream/20 bg-forest/50">Sarvam Saaras v3</span>
             <span className="px-2.5 py-1 rounded-full border border-cream/20 bg-forest/50">LanceDB</span>
             <span className="px-2.5 py-1 rounded-full border border-cream/20 bg-forest/50">FastEmbed</span>
-            <span className="px-2.5 py-1 rounded-full border border-cream/20 bg-forest/50">Groq Llama 3.1</span>
+            <span className="px-2.5 py-1 rounded-full border border-cream/20 bg-forest/50">Groq GPT-OSS 20B</span>
           </div>
         </div>
 

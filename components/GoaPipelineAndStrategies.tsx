@@ -32,9 +32,9 @@ export default function GoaPipelineAndStrategies({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 max-w-6xl mx-auto px-4">
           {[
             { id: "transcribe", num: "01", title: "SARVAM STT", desc: "Voice → Hindi/Eng/Hinglish Text", color: "forest" },
-            { id: "safety", num: "02", title: "4-LAYER GUARDS", desc: "Deterministic + Llama Guard 3", color: "pink" },
+            { id: "safety", num: "02", title: "4-LAYER GUARDS", desc: "Deterministic + Llama Prompt Guard", color: "pink" },
             { id: "retrieve", num: "03", title: "HYBRID RETRIEVAL", desc: "FastEmbed + BM25 + RRF (k=60)", color: "forest" },
-            { id: "generate", num: "04", title: "GROQ GENERATION", desc: "Llama 3.1 Tool-Contract", color: "pink" },
+            { id: "generate", num: "04", title: "GROQ GENERATION", desc: "GPT-OSS 20B Tool-Contract", color: "pink" },
             { id: "ground", num: "05", title: "GROUNDING VERIFIER", desc: "Cosine Sim + Entity Overlap", color: "forest" },
           ].map((stage) => {
             const stepObj = steps.find((s) => s.id === stage.id);
