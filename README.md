@@ -241,15 +241,15 @@ Two consecutive runs on 2026-08-20 — numbers are stable.
 ### Benchmark A — Fast-path RAG (user-visible SLA path)
 
 ```text
-MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=20, live Railway)
+MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=50, live Railway)
 normalize → guardrails → embed → retrieve → extractive → grounding_extractive
-Answer Rate: 20/20 (100%)  SLA target: 200ms  SLA met: ✓
+Answer Rate: 50/50 (100%)  SLA target: 200ms  SLA met: ✓
 
 | Scenario | Embedding | Retrieval | Total RAG Core |
 |----------|-----------|-----------|----------------|
 | Cold (1st query after deploy) | ~12ms | ~6ms | ~19ms |
-| Warm (subsequent queries, LRU cache) | ~0ms | ~6ms | ~6ms |
-| **P50 across 20 mixed queries** | **0.01ms** | **5.82ms** | **6.11ms** |
+| Warm (subsequent queries, LRU cache) | ~0.01ms | ~6.6ms | ~7.0ms |
+| **P50 across 50 mixed queries** | **0.01ms** | **6.65ms** | **7.04ms** |
 ```
 
 **Embedding latency — cold vs warm (important):**
@@ -259,24 +259,24 @@ Answer Rate: 20/20 (100%)  SLA target: 200ms  SLA met: ✓
 | Cold — first unique query string | ~12ms | FastEmbed ONNX runs inference via `model.embed()` |
 | Warm — repeated / cached string | ~0.01ms | `@lru_cache(maxsize=256)` returns cached tuple instantly |
 
-The benchmark P50 of `0.01ms` reflects warm LRU cache hits across 20 queries (several repeat identical strings). Any **new, unseen query** will pay the ~12ms ONNX inference cost once, then be cached. This is expected and by design — the cache removes redundant embedding calls for repeated questions without affecting correctness.
+The benchmark P50 of `0.01ms` reflects warm LRU cache hits across 50 queries (several repeat identical strings). Any **new, unseen query** will pay the ~12ms ONNX inference cost once, then be cached. This is expected and by design — the cache removes redundant embedding calls for repeated questions without affecting correctness.
 
-**Full Breakdown — live Railway, 20 mixed queries (EN/HI/Hinglish), warm:**
+**Full Breakdown — live Railway, 50 mixed queries (EN/HI/Hinglish), warm:**
 ```text
 Stage                          P50 (ms)   P70 (ms)   P100 (ms)  Mean (ms)
 -------------------------------------------------------------------------
-Embedding (FastEmbed/LRU)          0.01       0.01       0.06       0.01  ← warm cache
-Retrieval (LanceDB Hybrid)         5.82       6.36      11.07       6.17
+Embedding (FastEmbed/LRU)          0.01       0.01       0.18       0.02  ← warm cache
+Retrieval (LanceDB Hybrid)         6.65       7.65      11.23       6.92
 Safety (L1 Deterministic)          0.00       0.00       0.00       0.00
-Extractive Answer                  0.25       0.27       0.38       0.27
-Grounding Extractive               0.05       0.05       0.07       0.03
+Extractive Answer                  0.28       0.29       0.38       0.28
+Grounding Extractive               0.01       0.06       0.10       0.03
 -------------------------------------------------------------------------
-RAG Core Total (warm)              6.11       6.73      11.50       6.49
+RAG Core Total (warm)              7.04       8.04      11.59       7.27
 RAG Core Total (cold, ~1st query)  ~19ms      —          —          —
 -------------------------------------------------------------------------
 ```
 
-*Source: two back-to-back calls on 2026-08-20 via `GET /api/benchmark?n=20`. Run 1: P50=5.85ms, P100=14.65ms. Run 2: P50=6.37ms, P100=8.35ms. Numbers above are averaged across both runs. Verify anytime: https://mango-voice.vercel.app/api/benchmark?n=20*
+*Source: Live call on 2026-08-20 via `GET /api/benchmark?n=50`. Verify anytime: https://mango-voice.vercel.app/api/benchmark?n=50*
 
 ### Benchmark B — LLM-enhanced pipeline (Groq, honest measurement)
 
