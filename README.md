@@ -28,7 +28,7 @@ If the system can't find sufficient evidence → it **refuses to answer** with a
 
 ## 2. Live Demo
 
-🔗 **Frontend (Vercel):** [mangovoice.vercel.app](https://mangovoice.vercel.app)  
+🔗 **Frontend (Vercel):** [mangovoice.vercel.app](https://mango-voice.vercel.app)  
 🚂 **Backend (Railway):** FastAPI + LanceDB — proxied transparently through the Next.js frontend
 
 ---
