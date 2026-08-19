@@ -229,13 +229,13 @@ Sarvam STT (~300-800ms network round-trip) + Benchmark A RAG core
 ```
 STT is always a network call. Never combined with A or B — LatencyMetrics.stt_ms is separate.
 
-Verify live: `GET /api/benchmark?n=20` (runs Benchmark A on Railway with 20 multilingual queries). Supports `?n=5–50` — warm LRU cache keeps all queries fast.
+Verify live: `GET /api/benchmark?n=50` (runs Benchmark A on Railway with 50 multilingual queries). Supports `?n=5–50` — warm LRU cache keeps all queries fast.
 
 ---
 
 ## 12. P50 / P70 / P100 Results
 
-Measured live against the production API via `curl -s "https://mango-voice.vercel.app/api/benchmark?n=20" | python3 -m json.tool`.
+Measured live against the production API via `curl -s "https://mango-voice.vercel.app/api/benchmark?n=50" | python3 -m json.tool`.
 Two consecutive runs on 2026-08-20 — numbers are stable.
 
 ### Benchmark A — Fast-path RAG (user-visible SLA path)
@@ -244,13 +244,13 @@ Two consecutive runs on 2026-08-20 — numbers are stable.
 MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=50, live Railway)
 normalize → guardrails → embed → retrieve → extractive → grounding_extractive
 Answer Rate: 50/50 (100%)  SLA target: 200ms  SLA met: ✓
+```
 
 | Scenario | Embedding | Retrieval | Total RAG Core |
 |----------|-----------|-----------|----------------|
 | Cold (1st query after deploy) | ~12ms | ~6ms | ~19ms |
 | Warm (subsequent queries, LRU cache) | ~0.01ms | ~6.6ms | ~7.0ms |
 | **P50 across 50 mixed queries** | **0.01ms** | **6.65ms** | **7.04ms** |
-```
 
 **Embedding latency — cold vs warm (important):**
 
