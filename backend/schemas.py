@@ -139,6 +139,7 @@ class QueryResponse(BaseModel):
     refusal_message: str | None = None
     latency: LatencyMetrics = Field(default_factory=LatencyMetrics)
     grounding_score: float | None = None
+    safety_degraded: bool = False      # True when L2 Prompt Guard failed/timed-out; L1 still ran
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 

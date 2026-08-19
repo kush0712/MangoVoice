@@ -14,7 +14,7 @@ import GoaPipelineAndStrategies from "@/components/GoaPipelineAndStrategies";
 import GoaFaqAndFooter from "@/components/GoaFaqAndFooter";
 import { DEFAULT_STEPS, PipelineStep } from "@/components/PipelineStatus";
 import { useVoiceRecorder } from "@/lib/useVoiceRecorder";
-import { queryAudio, queryText, checkHealth, QueryResponse } from "@/lib/api";
+import { queryAudio, queryText, checkHealth, QueryResponse, pollForPolishedAnswer } from "@/lib/api";
 
 function updateStep(
   steps: PipelineStep[],
@@ -99,6 +99,27 @@ export default function Home() {
       const el = document.getElementById("results-noticeboard");
       if (el) el.scrollIntoView({ behavior: "smooth" });
     }, 200);
+
+    // Progressive enhancement: poll once ~1.5s later for the Groq-polished answer.
+    // If it arrived and passed grounding, swap it in with a smooth transition.
+    if (res.status === "answered" && res.request_id && res.request_id !== "error") {
+      const rid = res.request_id;
+      setTimeout(async () => {
+        const polished = await pollForPolishedAnswer(rid);
+        if (polished.ready && polished.answer) {
+          setResult((prev) =>
+            prev && prev.request_id === rid
+              ? {
+                  ...prev,
+                  answer: polished.answer!,
+                  answer_source: polished.answer_source ?? "llm",
+                  grounding_score: polished.grounding_score ?? prev.grounding_score,
+                }
+              : prev
+          );
+        }
+      }, 1600);
+    }
   }, []);
 
   // ── Handle mic button click ───────────────────────────────────────────────

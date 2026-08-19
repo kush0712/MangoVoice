@@ -17,7 +17,7 @@ import numpy as np
 
 from backend.config import settings
 from backend.schemas import QueryResponse, HealthResponse, ErrorResponse
-from backend.orchestrator import orchestrate_query
+from backend.orchestrator import orchestrate_query, get_polished_result
 from backend.telemetry import get_logger
 
 logger = get_logger(__name__)
@@ -79,6 +79,32 @@ async def query_text(body: dict) -> QueryResponse:
     return result
 
 
+@app.get("/api/query/result/{request_id}")
+async def get_polished_answer(request_id: str) -> dict:
+    """
+    Progressive enhancement polling endpoint.
+
+    The extractive fast-path answer is returned immediately in <200ms.
+    Groq generates a polished, LLM-verified answer in the background (~1-2s).
+    Frontend polls this endpoint once after ~1.5s to swap in the AI-enhanced
+    answer if it passed grounding verification.
+
+    Returns:
+      {"ready": true,  "answer": "...", "answer_source": "llm", "grounding_score": 0.82}
+      {"ready": false} — still generating or grounding failed
+    """
+    polished = get_polished_result(request_id)
+    if polished is None:
+        return {"ready": False}
+    return {
+        "ready": True,
+        "answer": polished["answer"],
+        "answer_source": polished["answer_source"],
+        "grounding_score": polished["grounding_score"],
+        "cited_chunk_ids": polished.get("cited_chunk_ids", []),
+    }
+
+
 @app.post("/api/tts")
 async def text_to_speech(body: dict):
     """
@@ -128,10 +154,12 @@ async def text_to_speech(body: dict):
 
 
 # ── Hardcoded multilingual test set for /api/benchmark ───────────────────────
-# 20 queries across English, Hindi, Hinglish — representative of real traffic.
+# 50 queries across English, Hindi, Hinglish — representative of real traffic.
 # Self-contained so the endpoint works on Railway without val_passages.jsonl.
+# N=50 is fast enough for free-tier Railway (all embedding lookups are LRU-cached
+# after the first pass, so the benchmark completes in ~3-5s warm).
 _BENCHMARK_QUERIES = [
-    # English — factual domain queries
+    # English — factual domain queries (20)
     "What is the capital of France?",
     "How does photosynthesis work?",
     "What causes earthquakes?",
@@ -140,27 +168,56 @@ _BENCHMARK_QUERIES = [
     "How many bones are in the human body?",
     "What is the boiling point of water?",
     "Who wrote Romeo and Juliet?",
-    # Hindi — Devanagari queries
-    "भारत की राजधानी क्या है?",
-    "सूर्य से पृथ्वी की दूरी कितनी है?",
-    "महात्मा गांधी का जन्म कब हुआ था?",
-    "भारत में कितने राज्य हैं?",
-    # Hinglish — code-mixed queries (realistic voice input)
-    "Blood pressure normal range kya hota hai?",
-    "Diabetes ke symptoms kya hain?",
-    "India mein kitni official languages hain?",
-    "Oxygen ka atomic number kya hai?",
-    # Mixed factual — tests retrieval breadth
     "What are the symptoms of malaria?",
     "When did World War 2 end?",
     "What is GDP and how is it measured?",
     "How does the immune system fight viruses?",
+    "What is the distance from Earth to the Sun?",
+    "Who was the first person to walk on the moon?",
+    "What is the chemical formula for water?",
+    "How does a vaccine work?",
+    "What is the largest planet in the solar system?",
+    "Who painted the Mona Lisa?",
+    "What causes thunder and lightning?",
+    "How does the human heart work?",
+    # Hindi — Devanagari queries (15)
+    "\u092d\u093e\u0930\u0924 \u0915\u0940 \u0930\u093e\u091c\u0927\u093e\u0928\u0940 \u0915\u094d\u092f\u093e \u0939\u0948?",
+    "\u0938\u0942\u0930\u094d\u092f \u0938\u0947 \u092a\u0943\u0925\u094d\u0935\u0940 \u0915\u0940 \u0926\u0942\u0930\u0940 \u0915\u093f\u0924\u0928\u0940 \u0939\u0948?",
+    "\u092e\u0939\u093e\u0924\u094d\u092e\u093e \u0917\u093e\u0902\u0927\u0940 \u0915\u093e \u091c\u0928\u094d\u092e \u0915\u092c \u0939\u0941\u0906 \u0925\u093e?",
+    "\u092d\u093e\u0930\u0924 \u092e\u0947\u0902 \u0915\u093f\u0924\u0928\u0947 \u0930\u093e\u091c\u094d\u092f \u0939\u0948\u0902?",
+    "\u092a\u093e\u0928\u0940 \u0915\u093e \u0930\u093e\u0938\u093e\u092f\u0928\u093f\u0915 \u0938\u0942\u0924\u094d\u0930 \u0915\u094d\u092f\u093e \u0939\u0948?",
+    "\u092a\u094d\u0930\u0915\u093e\u0936 \u0938\u0902\u0936\u094d\u0932\u0947\u0937\u0923 \u0915\u094d\u092f\u093e \u0939\u094b\u0924\u093e \u0939\u0948?",
+    "\u092e\u0932\u0947\u0930\u093f\u092f\u093e \u0915\u0947 \u0932\u0915\u094d\u0937\u0923 \u0915\u094d\u092f\u093e \u0939\u0948\u0902?",
+    "\u0921\u0940\u090f\u0928\u090f \u0915\u094d\u092f\u093e \u0939\u094b\u0924\u093e \u0939\u0948?",
+    "\u092e\u093e\u0928\u0935 \u0936\u0930\u0940\u0930 \u092e\u0947\u0902 \u0915\u093f\u0924\u0928\u0940 \u0939\u0921\u094d\u0921\u093f\u092f\u093e\u0902 \u0939\u094b\u0924\u0940 \u0939\u0948\u0902?",
+    "\u092a\u0943\u0925\u094d\u0935\u0940 \u0915\u093e \u0938\u092c\u0938\u0947 \u092c\u095c\u093e \u0917\u094d\u0930\u0939 \u0915\u094c\u0928 \u0938\u093e \u0939\u0948?",
+    "\u0932\u0947\u091c\u0930 \u0915\u094d\u092f\u093e \u0939\u094b\u0924\u093e \u0939\u0948?",
+    "\u0935\u093f\u0915\u093e\u0938 \u0926\u0930 \u0915\u094d\u092f\u093e \u0939\u094b\u0924\u0940 \u0939\u0948?",
+    "\u090a\u0930\u094d\u091c\u093e \u0938\u0902\u0930\u0915\u094d\u0937\u0923 \u0915\u094d\u092f\u094b\u0902 \u091c\u0930\u0942\u0930\u0940 \u0939\u0948?",
+    "\u092d\u0942\u0915\u0902\u092a \u0915\u094d\u092f\u094b\u0902 \u0906\u0924\u093e \u0939\u0948?",
+    "\u0907\u0902\u091f\u0930\u0928\u0947\u091f \u0915\u0948\u0938\u0947 \u0915\u093e\u092e \u0915\u0930\u0924\u093e \u0939\u0948?",
+    # Hinglish — code-mixed queries (15)
+    "Blood pressure normal range kya hota hai?",
+    "Diabetes ke symptoms kya hain?",
+    "India mein kitni official languages hain?",
+    "Oxygen ka atomic number kya hai?",
+    "DNA kya hota hai aur kaise kaam karta hai?",
+    "Earthquake kyu aata hai?",
+    "Vaccine kaise kaam karta hai body mein?",
+    "Solar system mein kitne planets hain?",
+    "World War 2 kab khatam hua?",
+    "GDP kya hota hai?",
+    "Immune system virus ko kaise fight karta hai?",
+    "Moon par pehle kaun gaya tha?",
+    "Mona Lisa kisne banayi thi?",
+    "Photosynthesis kya hota hai?",
+    "Human heart kaise kaam karta hai?",
 ]
 
 
 @app.get("/api/benchmark")
 async def live_benchmark(
-    n: int = Query(default=20, ge=5, le=20, description="Number of queries to run (5–20)"),
+    n: int = Query(default=20, ge=5, le=50, description="Number of queries to run (5–50)"),
 ) -> dict:
     """
     Live benchmark endpoint — judges can verify MangoVoice latency numbers directly.

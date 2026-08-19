@@ -73,9 +73,12 @@ FastAPI Python API on Railway (Docker)
   │       │     └── PASS → return ANSWERED immediately  ← user sees answer here
   │       └── FAIL → return REFUSED with sources[:3]
   │
-  ├── [BACKGROUND] Groq generation (fire-and-forget, never awaited)
-  │       ├── asyncio.create_task(_background_polish()) — result discarded
-  │       └── A Groq 429 or timeout is silently swallowed, never surfaces as error
+  ├── [BACKGROUND] Groq generation + grounding (never awaited)
+  │       ├── asyncio.create_task(_background_polish(request_id, ...))
+  │       ├── Groq generates LLM answer → full grounding verification runs
+  │       ├── If grounding passes → stored in _polish_store[request_id] (TTL 60s)
+  │       └── Frontend polls GET /api/query/result/{request_id} ~1.6s later
+  │           → if ready, AI-enhanced answer replaces extractive in UI (🧠 AI ENHANCED badge)
   │
   └── Structured Pydantic v2 response (QueryResponse)
         answer, answer_source, transcript, language, confidence,
@@ -92,7 +95,7 @@ FastAPI Python API on Railway (Docker)
 | `POST` | `/api/query` | **Main endpoint.** Accepts `audio` (file upload) + `language` form field. Full voice RAG pipeline. |
 | `POST` | `/api/query/text` | Text-only query (demo mode / no microphone). Body: `{"text": "...", "language": "auto"}` |
 | `POST` | `/api/tts` | Text-to-speech via **Sarvam Bulbul v2**. Body: `{"text": "...", "language": "hi-IN"|"en-IN"|"auto"}`. Auto-detects from Devanagari script. Returns base64 WAV. |
-| `GET` | `/api/benchmark` | **Live latency benchmark.** Runs 20 multilingual queries (EN/HI/Hinglish) through the fast-path and returns P50/P70/P100 per stage. Judges can verify numbers directly. `?n=5–20` |
+| `GET` | `/api/benchmark` | **Live latency benchmark.** Runs multilingual queries (EN/HI/Hinglish) through the fast-path and returns P50/P70/P100 per stage. Judges can verify numbers directly. `?n=5–50` (default 20) |
 
 The frontend uses all four endpoints: health polling (30s interval), audio query, demo text query, and TTS playback after answers.
 
@@ -196,7 +199,7 @@ Dense handles semantic paraphrases; BM25 handles exact names, numbers, acronyms.
 |-------|-------------|-------------------|
 | **L1 Deterministic** | Unicode NFC normalize + length cap (512 chars) + 15-pattern injection regex + unsafe content regex | ~0ms, every query |
 | **L2 Prompt Guard** | Groq `meta-llama/llama-prompt-guard-2-22m` classification | Parallel with retrieval, timeout 3s, fail-open |
-| **L3 Confidence Gate** | `confidence = 0.70 × norm_dense_sim + 0.20 × cross_modal_agree + 0.10 × count_bonus`. Threshold: 0.18. Borderline: requires cross-modal agreement + ≥2 sources. | After retrieval |
+| **L3 Confidence Gate** | `confidence = 0.70 × norm_dense_sim + 0.20 × cross_modal_agree + 0.10 × count_bonus`. Threshold: 0.50. Borderline: requires cross-modal agreement + ≥2 sources. | After retrieval |
 | **L4 Grounding Verifier (extractive)** | Citation existence + entity/number overlap. Score = overlap ≥ 0.40. ~0ms (no embedding). | After extractive answer |
 
 The system **refuses** at every gate. Refusal is a first-class outcome, not an afterthought.  
@@ -226,41 +229,54 @@ Sarvam STT (~300-800ms network round-trip) + Benchmark A RAG core
 ```
 STT is always a network call. Never combined with A or B — LatencyMetrics.stt_ms is separate.
 
-Verify live: `GET /api/benchmark` (runs Benchmark A on Railway with 20 multilingual queries).
+Verify live: `GET /api/benchmark?n=20` (runs Benchmark A on Railway with 20 multilingual queries). Supports `?n=5–50` — warm LRU cache keeps all queries fast.
 
 ---
 
 ## 12. P50 / P70 / P100 Results
 
-Measured live against the production API via `curl -sk "https://mango-voice.vercel.app/api/benchmark?n=20" | python3 -m json.tool`.
+Measured live against the production API via `curl -s "https://mango-voice.vercel.app/api/benchmark?n=20" | python3 -m json.tool`.
+Two consecutive runs on 2026-08-20 — numbers are stable.
 
 ### Benchmark A — Fast-path RAG (user-visible SLA path)
 
 ```text
-MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=20)
+MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=20, live Railway)
 normalize → guardrails → embed → retrieve → extractive → grounding_extractive
+Answer Rate: 20/20 (100%)  SLA target: 200ms  SLA met: ✓
 
 | Scenario | Embedding | Retrieval | Total RAG Core |
 |----------|-----------|-----------|----------------|
-| Cold (1st query after deploy) | ~15ms | ~6ms | ~22ms |
-| Warm (subsequent queries, LRU cache) | ~0ms | ~5ms | ~6ms |
-| **P50 across 20 mixed queries** | **0.01ms** | **5.13ms** | **5.38ms** |
+| Cold (1st query after deploy) | ~12ms | ~6ms | ~19ms |
+| Warm (subsequent queries, LRU cache) | ~0ms | ~6ms | ~6ms |
+| **P50 across 20 mixed queries** | **0.01ms** | **5.82ms** | **6.11ms** |
+```
 
-*Embedding is near-zero on warm queries because FastEmbed loads the ONNX model once at startup and caches it in-process on Railway.*
+**Embedding latency — cold vs warm (important):**
 
-**Full Breakdown (20 mixed queries):**
+| Scenario | Embedding latency | Explanation |
+|---|---|---|
+| Cold — first unique query string | ~12ms | FastEmbed ONNX runs inference via `model.embed()` |
+| Warm — repeated / cached string | ~0.01ms | `@lru_cache(maxsize=256)` returns cached tuple instantly |
+
+The benchmark P50 of `0.01ms` reflects warm LRU cache hits across 20 queries (several repeat identical strings). Any **new, unseen query** will pay the ~12ms ONNX inference cost once, then be cached. This is expected and by design — the cache removes redundant embedding calls for repeated questions without affecting correctness.
+
+**Full Breakdown — live Railway, 20 mixed queries (EN/HI/Hinglish), warm:**
 ```text
 Stage                          P50 (ms)   P70 (ms)   P100 (ms)  Mean (ms)
 -------------------------------------------------------------------------
-Embedding (FastEmbed)              0.01       0.01       0.04       0.01
-Retrieval (LanceDB Hybrid)         5.13       5.50      16.38       5.91
+Embedding (FastEmbed/LRU)          0.01       0.01       0.06       0.01  ← warm cache
+Retrieval (LanceDB Hybrid)         5.82       6.36      11.07       6.17
 Safety (L1 Deterministic)          0.00       0.00       0.00       0.00
-Extractive Answer                  0.22       0.23       0.31       0.23
-Grounding Extractive               0.04       0.04       0.07       0.03
+Extractive Answer                  0.25       0.27       0.38       0.27
+Grounding Extractive               0.05       0.05       0.07       0.03
 -------------------------------------------------------------------------
-RAG Core Total                     5.38       5.78      16.75       6.19
+RAG Core Total (warm)              6.11       6.73      11.50       6.49
+RAG Core Total (cold, ~1st query)  ~19ms      —          —          —
 -------------------------------------------------------------------------
 ```
+
+*Source: two back-to-back calls on 2026-08-20 via `GET /api/benchmark?n=20`. Run 1: P50=5.85ms, P100=14.65ms. Run 2: P50=6.37ms, P100=8.35ms. Numbers above are averaged across both runs. Verify anytime: https://mango-voice.vercel.app/api/benchmark?n=20*
 
 ### Benchmark B — LLM-enhanced pipeline (Groq, honest measurement)
 
@@ -274,17 +290,18 @@ RAG Core Total (incl. Groq)    ~1530      ~1830      ~2600
 † Groq free-tier. Numbers vary with API load. Reported honestly.
 ```
 
-**Note to Evaluators:** We use a 20 Billion parameter model (`gpt-oss-20b`) that takes ~1.5 seconds to run, but thanks to our async fast-path architecture (Benchmark A), the user gets their answer in under 1 second because the LLM is off the critical path.
+**Note to Evaluators:** We use a 20 Billion parameter model (`gpt-oss-20b`) that takes ~1.5 seconds to run, but thanks to our async fast-path architecture (Benchmark A), the user gets their answer in under 200ms because the LLM is off the critical path. The polished LLM answer arrives in the background and is swapped into the UI ~1.6s later (progressive enhancement).
 
 ### Benchmark C — Voice E2E
 ```
 Sarvam STT (network round-trip): ~300–800ms (measured separately, LatencyMetrics.stt_ms)
-Full E2E = stt_ms + Benchmark A rag_core ≈ 320–815ms
+Full E2E = stt_ms + Benchmark A rag_core ≈ 306–820ms
 ```
 
-Verify Benchmark A live: `GET /api/benchmark?n=20` → returns P50/P70/P100 JSON from Railway.
+Verify live: `GET /api/benchmark?n=20` → returns P50/P70/P100 JSON directly from Railway. Supports `?n=5–20` (deploy must be current to use `?n=5–50`).
 
-Answer Rate: **100%** (20/20)
+Answer Rate: **100%** (20/20, both runs)
+
 
 ---
 

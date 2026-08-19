@@ -48,11 +48,11 @@ export default function NoticeBoardResults({ result, isLoading }: NoticeBoardRes
               GROUNDED ANSWER
             </div>
             <p className="font-hhg-mono text-sm text-ink/70 leading-relaxed">
-              Answers generated strictly from retrieved evidence with tool-contract enforcement.
+              Answers grounded strictly from retrieved evidence with tool-contract enforcement.
             </p>
             <div className="mt-4">
               <span className="btn-hhg-yellow text-[11px] py-1 px-4 cursor-default">
-                ZERO HALLUCINATIONS
+                GROUNDING ENFORCED
               </span>
             </div>
           </div>
@@ -208,11 +208,25 @@ export default function NoticeBoardResults({ result, isLoading }: NoticeBoardRes
           <div className="card-pinned p-6 relative flex-1 flex flex-col justify-between" style={{ transform: "rotate(0.5deg)" }}>
             <PushPin color="yellow" />
             <div>
+              {/* Answer card header with source badge */}
               <div className="flex items-center justify-between mb-3 border-b border-muted-fill/40 pb-2">
                 <span className="text-xs font-hhg-mono text-forest uppercase font-bold tracking-wider">
                   GROUNDED ANSWER
                 </span>
                 <div className="flex items-center gap-2">
+                  {/* Answer source badge — shows after progressive enhancement */}
+                  {result?.answer_source && (
+                    <span
+                      className={`text-[10px] font-hhg-mono font-bold px-2 py-0.5 rounded-full uppercase transition-all duration-500 ${
+                        result.answer_source === "llm"
+                          ? "bg-forest text-cream"
+                          : "bg-sunshine/30 text-forest border border-forest/20"
+                      }`}
+                      title={result.answer_source === "llm" ? "AI-synthesised from retrieved evidence, grounding verified" : "Directly extracted from top retrieved passage"}
+                    >
+                      {result.answer_source === "llm" ? "\uD83E\uDDE0 AI ENHANCED" : "\u26A1 EVIDENCE DIRECT"}
+                    </span>
+                  )}
                   <span
                     className={`text-[11px] font-hhg-mono font-bold px-2.5 py-0.5 rounded-tag uppercase ${
                       result?.confidence === "high"
@@ -262,7 +276,7 @@ export default function NoticeBoardResults({ result, isLoading }: NoticeBoardRes
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
                 <button
                   onClick={handleSpeak}
                   disabled={!result?.answer}
@@ -279,8 +293,19 @@ export default function NoticeBoardResults({ result, isLoading }: NoticeBoardRes
                   )}
                 </button>
 
-                <div className="text-[11px] font-hhg-mono text-muted-text">
-                  RAG Core: <span className="font-bold text-forest">{result?.latency?.rag_core_ms?.toFixed(0)} ms</span>
+                <div className="flex items-center gap-2 text-[11px] font-hhg-mono text-muted-text">
+                  {result?.safety_degraded && (
+                    <span
+                      className="px-2 py-0.5 rounded-full bg-hibiscus/15 text-hibiscus border border-hibiscus/30 font-bold text-[10px] uppercase"
+                      title="L2 Prompt Guard timed out or was unavailable. L1 deterministic guardrail still ran."
+                    >
+                      ⚠ SAFETY L2 DEGRADED
+                    </span>
+                  )}
+                  RAG Core:{" "}
+                  <span className="font-bold text-forest">
+                    {result?.latency?.rag_core_ms?.toFixed(0)} ms
+                  </span>
                 </div>
               </div>
             </div>

@@ -31,6 +31,7 @@ export interface QueryResponse {
   transcript: string | null;
   language: string | null;
   answer: string | null;
+  answer_source: "extractive" | "llm" | null;
   confidence: "high" | "medium" | "refused";
   confidence_score: number;
   sources: Source[];
@@ -38,6 +39,7 @@ export interface QueryResponse {
   refusal_message: string | null;
   latency: LatencyMetrics;
   grounding_score: number | null;
+  safety_degraded?: boolean;
 }
 
 export interface HealthResponse {
@@ -103,21 +105,22 @@ export async function queryAudio(
         transcript: null,
         language: null,
         answer: null,
+        answer_source: null,
         grounding_score: null,
         confidence: "refused",
         confidence_score: 0,
         sources: [],
-        latency: { 
-          stt_ms, 
+        latency: {
+          stt_ms,
           normalization_ms: 0,
           embedding_ms: 0,
-          retrieval_ms: 0, 
+          retrieval_ms: 0,
           safety_ms: 0,
-          generation_ms: 0, 
-          grounding_ms: 0, 
+          generation_ms: 0,
+          grounding_ms: 0,
           rag_core_ms: 0,
-          full_e2e_ms: stt_ms 
-        }
+          full_e2e_ms: stt_ms,
+        },
       };
     }
 
@@ -172,3 +175,30 @@ export async function checkHealth(): Promise<HealthResponse> {
   return handleResponse<HealthResponse>(res);
 }
 
+
+export interface PolishedResult {
+  ready: boolean;
+  answer?: string;
+  answer_source?: "extractive" | "llm";
+  grounding_score?: number;
+  cited_chunk_ids?: string[];
+}
+
+/**
+ * Progressive enhancement: poll once for the Groq-generated answer.
+ * Call ~1500ms after the initial extractive answer arrives.
+ * Returns {ready: false} if Groq hasn't finished or grounding failed.
+ */
+export async function pollForPolishedAnswer(
+  requestId: string
+): Promise<PolishedResult> {
+  try {
+    const res = await fetch(`/api/query/result/${encodeURIComponent(requestId)}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return { ready: false };
+    return res.json() as Promise<PolishedResult>;
+  } catch {
+    return { ready: false };
+  }
+}
