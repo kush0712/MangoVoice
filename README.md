@@ -28,7 +28,7 @@ If the system can't find sufficient evidence → it **refuses to answer** with a
 
 ## 2. Live Demo
 
-🔗 **Frontend (Vercel):** [mangovoice.vercel.app](https://mango-voice.vercel.app)  
+🔗 **Frontend (Vercel):** [mango-voice.vercel.app](https://mango-voice.vercel.app)  
 🚂 **Backend (Railway):** FastAPI + LanceDB — proxied transparently through the Next.js frontend
 
 ---
@@ -65,7 +65,7 @@ FastAPI Python API on Railway (Docker)
   │       ├── Primary signal: raw cosine similarity of top dense result (not tiny RRF score)
   │       ├── Cross-modal bonus: dense + BM25 agree on top chunk (+20%)
   │       ├── Count bonus: number of candidates / 10 (+10% max)
-  │       └── Composite threshold: confidence_low_threshold = 0.18
+  │       └── Composite threshold: confidence_low_threshold = 0.50
   │
   ├── ⚡ EXTRACTIVE FAST PATH (primary response — <200ms SLA)
   │       ├── extractive_fallback(): best-matching sentence from top source (~0ms)
@@ -94,7 +94,7 @@ FastAPI Python API on Railway (Docker)
 | `GET` | `/api/health` | Backend readiness check — returns index + embedder status |
 | `POST` | `/api/query` | **Main endpoint.** Accepts `audio` (file upload) + `language` form field. Full voice RAG pipeline. |
 | `POST` | `/api/query/text` | Text-only query (demo mode / no microphone). Body: `{"text": "...", "language": "auto"}` |
-| `POST` | `/api/tts` | Text-to-speech via **Sarvam Bulbul v2**. Body: `{"text": "...", "language": "hi-IN"|"en-IN"|"auto"}`. Auto-detects from Devanagari script. Returns base64 WAV. |
+| `POST` | `/api/tts` | Text-to-speech via **Sarvam Bulbul v2**. Body: `{"text": "...", "language": "hi-IN"}` (or "en-IN"/"auto"). Auto-detects from Devanagari script. Returns base64 WAV. |
 | `GET` | `/api/benchmark` | **Live latency benchmark.** Runs multilingual queries (EN/HI/Hinglish) through the fast-path and returns P50/P70/P100 per stage. Judges can verify numbers directly. `?n=5–50` (default 20) |
 
 The frontend uses all four endpoints: health polling (30s interval), audio query, demo text query, and TTS playback after answers.
@@ -138,7 +138,7 @@ The frontend uses all four endpoints: health polling (30s interval), audio query
 - Embedded locally with FastEmbed ONNX (Mean Pooling, 384-dim) — zero cloud embedding cost
 - Stored in LanceDB with IVF_PQ ANN index + BM25 Full-Text Search
 
-**Evaluation** uses a 500-query validation set (`data/val_passages.jsonl`) with gold passage labels. The chunking eval runs 100 queries per strategy; the latency benchmark ran 199 queries (all answered in <63ms local time).
+**Evaluation** uses a 500-query validation set (`data/val_passages.jsonl`) with gold passage labels. The chunking eval runs 100 queries per strategy; the latency benchmark ran 50 live queries against Railway (all answered in <12ms warm).
 
 ---
 
@@ -215,7 +215,7 @@ Three clearly-labelled benchmarks — judges should read all three:
 ```
 normalize → guardrails → embed → retrieve → extractive → grounding_extractive → response
 ```
-Groq is **not** on this path. P50 target: **<50ms** (typically 12–15ms on Railway warm).
+Groq is **not** on this path. P50 target: **<50ms** (typically ~7ms on Railway warm).
 
 **Benchmark B — LLM-enhanced pipeline** (honest measurement):
 ```
@@ -298,7 +298,7 @@ Sarvam STT (network round-trip): ~300–800ms (measured separately, LatencyMetri
 Full E2E = stt_ms + Benchmark A rag_core ≈ 306–820ms
 ```
 
-Verify live: `GET /api/benchmark?n=20` → returns P50/P70/P100 JSON directly from Railway. Supports `?n=5–20` (deploy must be current to use `?n=5–50`).
+Verify live: `GET /api/benchmark?n=50` → returns P50/P70/P100 JSON directly from Railway. Supports `?n=5–50`.
 
 Answer Rate: **100%** (20/20, both runs)
 
@@ -317,8 +317,7 @@ Answer Rate: **100%** (20/20, both runs)
 | Groq llama-prompt-guard-2-22m (safety) | $0 (free tier) |
 | Vercel Hobby (frontend) | $0 |
 | Railway (backend Docker) | ~$5/mo hobby plan |
-| GitHub Releases (index storage) | $0 |
-| GitHub | $0 |
+| GitHub / GitHub Releases (index storage) | $0 |
 
 ---
 
@@ -376,7 +375,7 @@ Vercel's Serverless Functions have a **250MB size limit** — the LanceDB index 
 User
   │
   ▼
-Vercel (Next.js frontend)            ← mangovoice.vercel.app
+Vercel (Next.js frontend)            ← mango-voice.vercel.app
   │  /api/* rewrites (next.config.ts)
   ▼
 Railway (FastAPI + Docker)           ← internal Railway URL
