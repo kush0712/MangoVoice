@@ -1,88 +1,85 @@
 {
-  "note": "Updated to three-benchmark structure (Phase 2 redesign). Previous single-number format was misleading because Groq generation was excluded without being explicitly labelled.",
   "benchmark_a_fast_path": {
-    "description": "Fast-path RAG: normalize -> guardrails -> embed -> retrieve -> extractive -> grounding_extractive -> response. This is the <200ms SLA path. Groq excluded.",
-    "n_queries": 199,
+    "description": "Fast-path RAG: normalize \u2192 guardrails \u2192 embed \u2192 retrieve \u2192 extractive \u2192 grounding_extractive. This is the <200ms SLA path.",
+    "n_queries": 5,
     "stages": {
       "embedding": {
-        "p50": 2.760874995146878,
-        "p70": 2.9237246009870432,
-        "p100": 7.981999995536171,
-        "mean": 2.8676474372954015
+        "p50": 5.754084006184712,
+        "p70": 6.065549602499232,
+        "p100": 6.24424999114126,
+        "mean": 5.623116600327194
       },
       "retrieval": {
-        "p50": 9.678082999016624,
-        "p70": 10.436158602533396,
-        "p100": 29.134750002413057,
-        "mean": 10.061712914835907
+        "p50": 15.326499997172505,
+        "p70": 15.668133599683642,
+        "p100": 18.07645799999591,
+        "mean": 15.365941799245775
       },
       "safety_l1": {
-        "p50": 0.011666998034343123,
-        "p70": 0.014041599933989346,
-        "p100": 0.030916999094188213,
-        "mean": 0.013112030711595961
+        "p50": 0.02429200685583055,
+        "p70": 0.0251920020673424,
+        "p100": 0.026749999960884452,
+        "mean": 0.02425840066280216
       },
       "extractive": {
-        "p50": 0.012,
-        "p70": 0.015,
-        "p100": 0.08,
-        "mean": 0.013
+        "p50": 19.293417004519142,
+        "p70": 21.739916995284148,
+        "p100": 26.833625001017936,
+        "mean": 18.1223917985335
       },
       "grounding_extractive": {
-        "p50": 0.008,
-        "p70": 0.010,
-        "p100": 0.05,
-        "mean": 0.009
+        "p50": 0.16820800374262035,
+        "p70": 0.170841597719118,
+        "p100": 0.1785829954314977,
+        "mean": 0.13683319848496467
       }
     },
     "rag_core_total": {
-      "p50": 12.62,
-      "p70": 13.50,
-      "p100": 37.80,
-      "mean": 13.05
-    }
+      "p50": 37.424875001306646,
+      "p70": 38.14704140822869,
+      "p100": 42.37337500671856,
+      "mean": 33.66895840445068
+    },
+    "answer_rate": "5/5"
   },
   "benchmark_b_llm_enhanced": {
-    "description": "LLM-enhanced pipeline: same as A + Groq generation (openai/gpt-oss-20b) + full grounding verifier with sentence embeddings. Reported honestly.",
-    "n_queries": 199,
+    "description": "LLM-enhanced pipeline: same + Groq generation + full grounding. Reported honestly \u2014 Groq free-tier adds 700-1500ms.",
+    "n_queries": 0,
     "stages": {
       "embedding": {
-        "p50": 2.760874995146878,
-        "p70": 2.9237246009870432,
-        "p100": 7.981999995536171,
-        "mean": 2.8676474372954015
+        "p50": 0.0,
+        "p70": 0.0,
+        "p100": 0.0,
+        "mean": 0.0
       },
       "retrieval": {
-        "p50": 9.678082999016624,
-        "p70": 10.436158602533396,
-        "p100": 29.134750002413057,
-        "mean": 10.061712914835907
+        "p50": 0.0,
+        "p70": 0.0,
+        "p100": 0.0,
+        "mean": 0.0
       },
       "generation_groq": {
-        "p50": 820.0,
-        "p70": 1100.0,
-        "p100": 2100.0,
-        "mean": 910.0,
-        "note": "Groq free-tier openai/gpt-oss-20b. Varies with API load. Measured via isolated runs; not included in latency_results.csv which was collected without live Groq calls."
+        "p50": 0.0,
+        "p70": 0.0,
+        "p100": 0.0,
+        "mean": 0.0
       },
       "grounding_full": {
-        "p50": 14.69395800086204,
-        "p70": 15.631641801155638,
-        "p100": 51.39208300533937,
-        "mean": 14.518599678255061
+        "p50": 0.0,
+        "p70": 0.0,
+        "p100": 0.0,
+        "mean": 0.0
       }
     },
     "rag_core_total": {
-      "p50_approx": 848.0,
-      "p70_approx": 1128.0,
-      "p100_approx": 2190.0,
-      "note": "Approximate: embedding + retrieval + generation_groq + grounding_full. Groq numbers are from isolated measurements."
-    }
+      "p50": 0.0,
+      "p70": 0.0,
+      "p100": 0.0,
+      "mean": 0.0
+    },
+    "answer_rate": "0/1"
   },
   "benchmark_c_voice_e2e": {
-    "description": "Voice E2E = Sarvam STT (network round-trip) + Benchmark A RAG core. STT is always reported separately in LatencyMetrics.stt_ms.",
-    "stt_typical_ms": "300-800",
-    "full_e2e_approx_ms": "315-815",
-    "note": "STT latency is a network property, not a RAG core property. Never combined with A or B numbers."
+    "note": "STT (Sarvam Saaras v3) is a REST network round-trip (~300-800ms typical). It is always measured and reported separately in LatencyMetrics.stt_ms. Full E2E = stt_ms + Benchmark A rag_core_ms. Not included in A or B numbers \u2014 network latency is not a property of the RAG core."
   }
 }
