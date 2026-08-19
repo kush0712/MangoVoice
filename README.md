@@ -298,9 +298,9 @@ Sarvam STT (network round-trip): ~300–800ms (measured separately, LatencyMetri
 Full E2E = stt_ms + Benchmark A rag_core ≈ 306–820ms
 ```
 
-Verify live: `GET /api/benchmark?n=50` → returns P50/P70/P100 JSON directly from Railway. Supports `?n=5–50`.
+Verify live: `curl -s "https://mango-voice.vercel.app/api/benchmark?n=50"` → returns P50/P70/P100 JSON directly from Railway. Supports `?n=5–50`.
 
-Answer Rate: **100%** (20/20, both runs)
+Answer Rate: **100%** (50/50)
 
 
 ---
