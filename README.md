@@ -229,7 +229,7 @@ Sarvam STT (~300-800ms network round-trip) + Benchmark A RAG core
 ```
 STT is always a network call. Never combined with A or B — LatencyMetrics.stt_ms is separate.
 
-Verify live: `GET /api/benchmark?n=50` (runs Benchmark A on Railway with 50 multilingual queries). Supports `?n=5–50` — warm LRU cache keeps all queries fast.
+Verify live: `curl -s "https://mango-voice.vercel.app/api/benchmark?n=50"` (runs Benchmark A on Railway with 50 multilingual queries). Supports `?n=5–50` — warm LRU cache keeps all queries fast.
 
 ---
 
