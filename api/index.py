@@ -38,6 +38,30 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def on_startup():
+    """Warm up models and LanceDB index in memory so the first request is fast."""
+    logger.info("Warming up FastEmbed and LanceDB index...")
+    import asyncio
+    from backend.retrieval.embeddings import get_embedder
+    from backend.retrieval.lancedb_store import get_store
+    from backend.retrieval.retriever import _RETRIEVAL_EXECUTOR
+    
+    # 1. Load FastEmbed model into RAM
+    embedder = get_embedder()
+    
+    # 2. Page LanceDB indices into RAM (if available)
+    store = get_store()
+    if store.is_ready():
+        loop = asyncio.get_running_loop()
+        dummy_vec = np.zeros(384, dtype=np.float32)
+        try:
+            await loop.run_in_executor(_RETRIEVAL_EXECUTOR, store.dense_search, dummy_vec, 1)
+            await loop.run_in_executor(_RETRIEVAL_EXECUTOR, store.bm25_search, "warmup", 1)
+            logger.info("Warmup complete!")
+        except Exception as e:
+            logger.warning("Warmup query failed: %s", e)
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     """Backend warm-up + readiness check."""
