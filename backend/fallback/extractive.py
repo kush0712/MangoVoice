@@ -123,29 +123,30 @@ def extractive_fallback(
             best_source = source
 
     if best_overlap >= 1:
-        # ── Semantic Verification (Dual Rules) ────────────────────────
-        # Token overlap can be fooled by coincidences. We use the local FastEmbed 
-        # model to verify exact semantic similarity. Since embed_query caches the 
-        # query, embedding the chunk and sentence only takes ~15ms total.
-        q_vec = embed_query(query)
-        s_vec = embed_query(best_snippet)
-        c_vec = embed_query(best_source.text)
-        
-        sent_sim = float(np.dot(q_vec, s_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(s_vec)))
-        chunk_sim = float(np.dot(q_vec, c_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(c_vec)))
-        
-        # Rule 1: High sentence similarity (Solves explicit direct answers)
-        # e.g. "What is the speed of light" -> "The speed of light is..."
-        passed_rule1 = sent_sim >= 0.55
-        
-        # Rule 2: High chunk similarity + strong keyword overlap (Solves Coreference)
-        # e.g. "What is the impact of Manhattan Project?" -> "Its impact was..."
-        # If the sentence uses pronouns ("its"), sentence sim will be low (~0.29).
-        # But if the overall chunk is semantically identical (>=0.60) AND has >= 3
-        # explicit keywords matching the query, we can safely extract the sentence.
-        passed_rule2 = chunk_sim >= 0.60 and best_overlap >= 3
-        
-        if passed_rule1 or passed_rule2:
+        # ── Semantic Verification (Zero Redundant CPU Inference) ───────────
+        # LanceDB already computed the exact cosine similarity between the query 
+        # and this source chunk during dense retrieval (preserved in raw_dense_score).
+        # Reusing this pre-computed score avoids 4-second CPU re-embeddings.
+        chunk_sim = getattr(best_source, "raw_dense_score", 0.0) or best_source.score
+
+        # Rule 1: Good semantic relevance (>=0.50) with strong keyword overlap (>=2)
+        passed_rule1 = chunk_sim >= 0.50 and best_overlap >= 2
+
+        # Rule 2: High semantic relevance (>=0.60) with at least 1 keyword match
+        passed_rule2 = chunk_sim >= 0.60 and best_overlap >= 1
+
+        # Fallback Rule 3: For borderline cases, embed only the single short candidate sentence
+        passed_rule3 = False
+        if not (passed_rule1 or passed_rule2) and best_overlap >= 1 and chunk_sim >= 0.40:
+            q_vec = embed_query(query)
+            s_vec = embed_query(best_snippet)
+            norm_q = np.linalg.norm(q_vec)
+            norm_s = np.linalg.norm(s_vec)
+            if norm_q > 0 and norm_s > 0:
+                sent_sim = float(np.dot(q_vec, s_vec) / (norm_q * norm_s))
+                passed_rule3 = sent_sim >= 0.55
+
+        if passed_rule1 or passed_rule2 or passed_rule3:
             answer = (
                 f'Based on the retrieved evidence:\n\n'
                 f'"{best_snippet}"\n\n'
