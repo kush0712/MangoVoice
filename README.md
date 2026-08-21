@@ -38,12 +38,16 @@ If the system can't find sufficient evidence → it **refuses to answer** with a
 ```
 Browser (Next.js on Vercel)
   │  voice: audio blob  OR  text: demo query
-  │  /api/* proxied via next.config.ts → Railway backend
-  ▼
-FastAPI Python API on Railway (Docker)
   │
-  ├── [VOICE PATH] Sarvam Saaras v3 STT (REST, auto language detection)
-  │       └── 1 retry on transient network error, hard timeout 12s
+  ├── [VOICE PATH] POST /api/stt  ← Vercel Next.js Edge function (app/api/stt/route.ts)
+  │       ├── Receives audio blob from browser (MediaRecorder)
+  │       ├── Calls Sarvam Saaras v3 STT (REST, language_code=unknown for codemix)
+  │       └── Returns { transcript, language } — SARVAM_API_KEY lives on Vercel
+  │
+  └── POST /api/query/text  ← proxied via next.config.ts → Railway FastAPI backend
+        (text queries and transcript from STT both follow this path)
+
+FastAPI Python API on Railway (Docker)
   │
   ├── Input normalization (Unicode NFC, collapse whitespace, strip control chars)
   │
@@ -52,14 +56,15 @@ FastAPI Python API on Railway (Docker)
   │       ├── Injection phrase regex (jailbreak/DAN/override patterns)
   │       └── Unsafe content regex (CSAM, weapons, self-harm, hacking)
   │
-  ├── [PARALLEL] Layer 2 safety + Hybrid retrieval
-  │     ├── L2: Groq Llama Prompt Guard 2 (meta-llama/llama-prompt-guard-2-22m)
-  │     │       timeout 3s, fail-open (L1 already ran)
-  │     └── Retrieval:
-  │           ├── FastEmbed/ONNX query embedding (LRU-cached, ~2.8ms P50)
-  │           ├── LanceDB dense ANN search top-20  ┐ run concurrently
-  │           ├── LanceDB BM25 FTS search top-20   ┘ via asyncio thread pool
-  │           └── RRF fusion (k=60) → top-8 final candidates
+  ├── Layer 2 safety (background asyncio.create_task — non-blocking)
+  │     └── Groq Llama Prompt Guard 2 (meta-llama/llama-prompt-guard-2-22m)
+  │             timeout 3s, fail-open; sets safety_degraded=True on failure
+  │
+  ├── Hybrid retrieval (runs while L2 safety runs in background)
+  │       ├── FastEmbed/ONNX query embedding (LRU-cached, ~42ms P50 cold)
+  │       ├── In-memory numpy dense search top-20  ┐ sequential RAM-only
+  │       ├── In-memory BM25 flat index search top-20  ┘ (~11ms total)
+  │       └── RRF fusion (k=60) → top-10 final candidates
   │
   ├── Layer 3 — Confidence gate
   │       ├── Primary signal: raw cosine similarity of top dense result (not tiny RRF score)
@@ -69,35 +74,44 @@ FastAPI Python API on Railway (Docker)
   │
   ├── ⚡ EXTRACTIVE FAST PATH (primary response — <200ms SLA)
   │       ├── extractive_fallback(): best-matching sentence from top source (~0ms)
-  │       ├── verify_grounding_extractive(): citation check + entity overlap (~0ms)
+  │       ├── verify_grounding_extractive(): citation check + substring fingerprint (~0ms)
   │       │     └── PASS → return ANSWERED immediately  ← user sees answer here
   │       └── FAIL → return REFUSED with sources[:3]
   │
   ├── [BACKGROUND] Groq generation + grounding (never awaited)
   │       ├── asyncio.create_task(_background_polish(request_id, ...))
-  │       ├── Groq generates LLM answer → full grounding verification runs
+  │       ├── Groq openai/gpt-oss-20b generates LLM answer via tool-calling contract
+  │       ├── Full grounding verification (embedding cosine + entity overlap) runs
   │       ├── If grounding passes → stored in _polish_store[request_id] (TTL 60s)
   │       └── Frontend polls GET /api/query/result/{request_id} ~1.6s later
   │           → if ready, AI-enhanced answer replaces extractive in UI (🧠 AI ENHANCED badge)
   │
   └── Structured Pydantic v2 response (QueryResponse)
         answer, answer_source, transcript, language, confidence,
-        sources, grounding_score, latency{per-stage}
+        sources, grounding_score, safety_degraded, latency{per-stage}
 ```
 
 ---
 
 ## 4. API Endpoints
 
+**Vercel Edge (Next.js — `app/api/stt/route.ts`):**
+
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/health` | Backend readiness check — returns index + embedder status |
-| `POST` | `/api/query` | **Main endpoint.** Accepts `audio` (file upload) + `language` form field. Full voice RAG pipeline. |
-| `POST` | `/api/query/text` | Text-only query (demo mode / no microphone). Body: `{"text": "...", "language": "auto"}` |
-| `POST` | `/api/tts` | Text-to-speech via **Sarvam Bulbul v2**. Body: `{"text": "...", "language": "hi-IN"}` (or "en-IN"/"auto"). Auto-detects from Devanagari script. Returns base64 WAV. |
-| `GET` | `/api/benchmark` | **Live latency benchmark.** Runs multilingual queries (EN/HI/Hinglish) through the fast-path and returns P50/P70/P100 per stage. Judges can verify numbers directly. `?n=5–50` (default 20) |
+| `POST` | `/api/stt` | **STT endpoint (Vercel Edge).** Accepts `audio` (multipart) + `language` form field. Calls Sarvam Saaras v3, returns `{transcript, language}`. SARVAM_API_KEY must be set on Vercel. |
 
-The frontend uses all four endpoints: health polling (30s interval), audio query, demo text query, and TTS playback after answers.
+**Railway FastAPI backend (`api/index.py`):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/health` | Backend readiness check — returns index + embedder + numpy-in-RAM status |
+| `POST` | `/api/query/text` | **Main RAG endpoint.** Text query (used by demo buttons and as the post-STT step for voice). Body: `{"text": "...", "language": "auto"}` |
+| `GET` | `/api/query/result/{request_id}` | **Progressive enhancement polling.** Returns `{ready, answer, answer_source, grounding_score}` once Groq background generation completes. Returns `{ready: false}` if not ready. |
+| `POST` | `/api/tts` | Text-to-speech via **Sarvam Bulbul v2**. Body: `{"text": "...", "language": "hi-IN"}` (or `"en-IN"`/`"auto"`). Auto-detects from Devanagari script. Returns base64 WAV. |
+| `GET` | `/api/benchmark` | **Live latency benchmark.** Runs multilingual queries (EN/HI/Hinglish) through the fast-path, returns P50/P70/P100 per stage. `?n=5–50` (default 20) |
+
+The frontend uses all five endpoints: health polling (30s interval), Vercel STT for audio, `/api/query/text` for RAG, `/api/query/result/{id}` for progressive enhancement polling, and `/api/tts` for answer playback.
 
 ---
 
@@ -177,17 +191,19 @@ Parent-Child (prod)    0.170  0.240  0.114   3.0 ms
 ## 9. Hybrid Retrieval
 
 ```
-Dense top-20 (cosine ANN)  ┐  run concurrently via
-BM25 top-20 (FTS)          ┘  asyncio.get_event_loop().run_in_executor()
+Dense top-20 (exact cosine, in-memory numpy matrix)  ┐  sequential, both
+BM25 top-20 (flat inverted index, in-memory numpy)   ┘  in RAM — ~11ms total
    ↓
 Deduplicate by chunk_id
    ↓
 RRF fusion: score(d) = Σ 1/(k + rank_m(d))  [k=60]
    ↓
-Top-8 final evidence candidates
+Top-10 final evidence candidates  (config: final_top_k = 10)
 ```
 
 Dense handles semantic paraphrases; BM25 handles exact names, numbers, acronyms.
+
+> **Note on concurrency:** Both dense and BM25 searches are pure in-memory numpy operations (~2–3ms each). They run sequentially since they complete so fast that async overhead would dominate. A 2-worker `ThreadPoolExecutor` (`_RETRIEVAL_EXECUTOR`) exists for startup warmup calls, where both searches run in executor threads to avoid blocking the event loop during initialization.
 
 **Confidence scoring** is driven by the raw cosine similarity of the top dense result (preserved in `raw_dense_score` before RRF overwrites `.score`), NOT the tiny RRF scores (which are always near 0.016 by design and carry no absolute relevance signal).
 
@@ -211,7 +227,7 @@ The system **refuses** at every gate. Refusal is a first-class outcome, not an a
 
 Three clearly-labelled benchmarks — judges should read all three:
 
-**Benchmark A — Fast-path RAG** ← the `<200ms` SLA path (what users experience):
+**Benchmark A — Fast-path RAG** ← the `<200ms` SLA path (what users experience, after STT completes on Vercel):
 ```
 normalize → guardrails → embed (fresh ONNX, no cache) → retrieve (RAM: numpy dense + numpy BM25, no cache) → extractive → grounding_extractive → response
 ```
@@ -311,11 +327,14 @@ Answer Rate: **100%** (50/50)
 ```bash
 cd mangovoice
 cp .env.example .env.local
-# Edit .env.local — set SARVAM_API_KEY, GROQ_API_KEY
+# Edit .env.local — set SARVAM_API_KEY (used by the /api/stt Vercel Edge route)
+# GROQ_API_KEY is only needed by the FastAPI backend, not the Next.js server
 # NEXT_PUBLIC_API_BASE is NOT needed locally (next.config.ts auto-proxies to 127.0.0.1:8000)
 npm install
 npm run dev
 ```
+
+> **Note:** `SARVAM_API_KEY` must be available to the Next.js server process for the `/api/stt` route (Vercel Edge function that does STT). In local dev this means it must be in `.env.local`. In production it must be set as a Vercel environment variable. The FastAPI backend uses `SARVAM_API_KEY` only for TTS (`/api/tts`).
 
 ### Backend (local dev with uvicorn)
 
@@ -367,11 +386,12 @@ Railway (FastAPI + Docker)           ← internal Railway URL
 
 ### Frontend — Vercel
 
-- **What:** Next.js 16 app (UI, voice recording, demo text queries, TTS playback, results display, live pipeline status)
+- **What:** Next.js 16 app (UI, voice recording, demo text queries, TTS playback, results display, live pipeline status). Also hosts the **`/api/stt` Edge route** (`app/api/stt/route.ts`) which is the only STT entry point — audio never goes to Railway.
 - **Config:** [`vercel.json`](vercel.json) — `{ "framework": "nextjs" }`
 - **Python excluded:** [`.vercelignore`](.vercelignore) excludes the entire `api/` and `backend/` Python tree so Vercel never tries to bundle it
+- **Env vars needed on Vercel:** `NEXT_PUBLIC_API_BASE=https://<your-railway-service>.railway.app` and `SARVAM_API_KEY` (for the `/api/stt` route)
 - **Proxy routing:** [`next.config.ts`](next.config.ts) rewrites `/api/*` → `$NEXT_PUBLIC_API_BASE/api/*` (Railway URL). The browser never makes a cross-origin request — CORS is a non-issue. In local dev, falls back to `http://127.0.0.1:8000` automatically (no env var needed).
-- **Env var needed on Vercel:** `NEXT_PUBLIC_API_BASE=https://<your-railway-service>.railway.app`
+
 
 ### Backend — Railway
 
