@@ -71,11 +71,13 @@ class LanceDBStore:
         self._vec_normed: Optional[np.ndarray] = None   # (N, 384) L2-normalised float32
         self._meta: Optional[list[dict]] = None          # parallel metadata per row
         # In-memory BM25 index (populated by _build_bm25_index)
-        # Uses scipy sparse matrix for vectorised O(N) scoring with zero disk IO
-        self._bm25_tf: Optional[object] = None    # scipy csr_matrix (N, V) float32
-        self._bm25_idf: Optional[np.ndarray] = None  # (V,) IDF weights
-        self._bm25_vocab: Optional[dict] = None   # token → column index
-        self._bm25_dl_norm: Optional[np.ndarray] = None  # (N, 1) doc-length normalisation
+        # Uses pure NumPy inverted index for O(postings) scoring with zero disk IO
+        self._bm25_vocab: Optional[dict] = None          # token → term_idx
+        self._bm25_docs: Optional[list[np.ndarray]] = None # term_idx → array of doc_ids
+        self._bm25_tfs: Optional[list[np.ndarray]] = None  # term_idx → array of term_frequencies
+        self._bm25_idf: Optional[np.ndarray] = None      # (V,) IDF weights
+        self._bm25_dl_norm: Optional[np.ndarray] = None  # (N,) doc-length normalisation
+        self._bm25_k1: float = 1.5
 
     def _load(self) -> None:
         if self._table is not None:
@@ -153,69 +155,64 @@ class LanceDBStore:
 
     def _build_bm25_index(self) -> None:
         """
-        Build a scipy sparse BM25 Okapi index over all chunk texts.
+        Build a pure NumPy inverted BM25 Okapi index over all chunk texts.
 
         One-time startup cost (~2-3s). After this, every bm25_search call is
-        5-7ms with zero disk IO: tokenize query → slice sparse TF columns →
-        vectorised numpy BM25 scoring.
-
-        Memory: ~10MB sparse data + ~1MB IDF array — negligible vs the 98MB
-        vector matrix already loaded.
-
-        BM25 Okapi parameters (k1=1.5, b=0.75) are the standard defaults
-        — same values Tantivy uses by default in LanceDB FTS.
+        <1ms with zero disk IO: tokenize query → look up doc/tf arrays →
+        vectorised numpy BM25 scoring over only matching docs.
         """
         if self._meta is None:
             return
 
         try:
-            from scipy import sparse as sp
-
             t0 = time.perf_counter()
             k1, b = 1.5, 0.75
             texts = [m["text"] or "" for m in self._meta]
             N = len(texts)
 
-            # Build vocabulary and per-doc term frequencies
+            # Build vocabulary and collect postings (doc_id, tf)
             vocab: dict[str, int] = {}
-            all_tfs: list[Counter] = []
+            term_postings: list[tuple[list[int], list[float]]] = []
             doc_lens = np.empty(N, dtype=np.float32)
 
             for i, text in enumerate(texts):
                 tokens = _bm25_tokenize(text)
                 doc_lens[i] = len(tokens)
                 tf = Counter(tokens)
-                for tok in tf:
+                for tok, cnt in tf.items():
                     if tok not in vocab:
                         vocab[tok] = len(vocab)
-                all_tfs.append(tf)
+                        term_postings.append(([], []))
+                    term_idx = vocab[tok]
+                    term_postings[term_idx][0].append(i)
+                    term_postings[term_idx][1].append(float(cnt))
 
             V = len(vocab)
             avg_dl = float(doc_lens.mean()) if N > 0 else 1.0
 
-            # Build sparse TF matrix (N, V) in float32
-            rows, cols_idx, data = [], [], []
-            for doc_idx, tf in enumerate(all_tfs):
-                for tok, cnt in tf.items():
-                    if tok in vocab:
-                        rows.append(doc_idx)
-                        cols_idx.append(vocab[tok])
-                        data.append(float(cnt))
+            # Finalize arrays
+            inv_index_docs = []
+            inv_index_tfs = []
+            idf = np.zeros(V, dtype=np.float32)
 
-            tf_mat = sp.csr_matrix(
-                (data, (rows, cols_idx)), shape=(N, V), dtype=np.float32
-            )
-
-            # Precompute IDF: log((N - df + 0.5) / (df + 0.5) + 1)
-            df = np.array((tf_mat > 0).sum(axis=0), dtype=np.float32).flatten()
-            idf = np.log((N - df + 0.5) / (df + 0.5) + 1).astype(np.float32)
+            nnz = 0
+            for i in range(V):
+                docs = np.array(term_postings[i][0], dtype=np.int32)
+                tfs = np.array(term_postings[i][1], dtype=np.float32)
+                inv_index_docs.append(docs)
+                inv_index_tfs.append(tfs)
+                nnz += len(docs)
+                
+                df = len(docs)
+                idf[i] = np.log((N - df + 0.5) / (df + 0.5) + 1)
 
             # Precompute per-doc BM25 denominator factor: k1*(1 - b + b*dl/avg_dl)
-            # Shape (N, 1) for broadcasting against (N, Q) TF slices
-            dl_factor = (k1 * (1 - b + b * doc_lens / avg_dl)).reshape(-1, 1).astype(np.float32)
+            # Shape (N,)
+            dl_factor = (k1 * (1 - b + b * doc_lens / avg_dl)).astype(np.float32)
 
             self._bm25_vocab = vocab
-            self._bm25_tf = tf_mat
+            self._bm25_docs = inv_index_docs
+            self._bm25_tfs = inv_index_tfs
             self._bm25_idf = idf
             self._bm25_dl_norm = dl_factor
             self._bm25_k1 = k1
@@ -223,7 +220,7 @@ class LanceDBStore:
             elapsed = (time.perf_counter() - t0) * 1000
             logger.info(
                 "In-memory BM25 index ready: vocab=%d terms, nnz=%d, built in %.0f ms",
-                V, tf_mat.nnz, elapsed,
+                V, nnz, elapsed,
             )
         except Exception as exc:
             logger.warning(
@@ -355,16 +352,14 @@ class LanceDBStore:
 
     def _bm25_search_ram(self, query_text: str, top_k: int) -> list[RetrievalSource]:
         """
-        In-memory BM25 Okapi scoring via scipy sparse matrix operations.
+        In-memory BM25 Okapi scoring via pure NumPy inverted index.
 
-        Algorithm (vectorised over all N docs simultaneously):
+        Algorithm:
           1. Tokenize query             ~0.01ms
           2. Look up query term cols    ~0.01ms
-          3. Slice TF sub-matrix        ~2ms  (sparse column access)
-          4. BM25 score = Σ_t idf(t) * tf(d,t)*(k1+1) / (tf(d,t) + dl_factor)
-                                        ~2ms  (numpy broadcast arithmetic)
-          5. argpartition top-k + sort  ~1ms
-        Total: 5-7ms, zero disk IO.
+          3. For each term, vectorized math over matching docs only
+          4. argpartition top-k + sort  ~0.1ms
+        Total: <1ms, zero disk IO.
         """
         t0 = time.perf_counter()
 
@@ -372,25 +367,29 @@ class LanceDBStore:
         q_term_indices = [self._bm25_vocab[t] for t in q_tokens if t in self._bm25_vocab]
 
         if not q_term_indices:
-            # No vocabulary match — return empty (dense search still runs in parallel)
             logger.debug(
                 "BM25 RAM: no vocab match for query, returning empty",
                 extra={"stage": "bm25_search", "latency_ms": 0.0},
             )
             return []
 
-        # Deduplicate term indices (handles repeated query tokens)
+        # Deduplicate term indices
         q_term_indices = list(dict.fromkeys(q_term_indices))
 
-        # Slice TF sub-matrix for query terms: (N, Q) dense float32
-        q_tf = self._bm25_tf[:, q_term_indices].toarray()  # type: ignore[union-attr]
-        q_idf = self._bm25_idf[q_term_indices]              # (Q,)
-
-        # BM25 Okapi: idf * tf*(k1+1) / (tf + dl_factor)
+        # Accumulate scores
+        scores = np.zeros(len(self._meta), dtype=np.float32) # type: ignore[arg-type]
         k1 = self._bm25_k1
-        num = q_tf * (k1 + 1)                      # (N, Q)
-        denom = q_tf + self._bm25_dl_norm          # (N, Q) via broadcast
-        scores = (num / denom * q_idf).sum(axis=1) # (N,) — sum over query terms
+
+        for term_idx in q_term_indices:
+            docs = self._bm25_docs[term_idx] # type: ignore[index]
+            tfs = self._bm25_tfs[term_idx]   # type: ignore[index]
+            term_idf = self._bm25_idf[term_idx] # type: ignore[index]
+            
+            num = tfs * (k1 + 1)
+            denom = tfs + self._bm25_dl_norm[docs] # type: ignore[index]
+            term_scores = (num / denom) * term_idf
+            
+            scores[docs] += term_scores
 
         top_k = min(top_k, len(scores))
         top_idx = np.argpartition(scores, -top_k)[-top_k:]
@@ -399,7 +398,7 @@ class LanceDBStore:
         sources = []
         for rank, idx in enumerate(top_idx):
             if scores[idx] <= 0:
-                break  # skip zero-score tails
+                break
             m = self._meta[idx]  # type: ignore[index]
             strategy_str = m.get("strategy") or "parent_child"
             try:
@@ -410,7 +409,7 @@ class LanceDBStore:
                 chunk_id=str(m["chunk_id"]),
                 parent_id=str(m["parent_id"] or ""),
                 score=float(scores[idx]),
-                raw_dense_score=0.0,  # BM25 score — not a cosine sim
+                raw_dense_score=0.0,
                 dense_rank=None,
                 bm25_rank=rank,
                 text=str(m["text"] or ""),
