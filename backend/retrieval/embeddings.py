@@ -33,17 +33,18 @@ class MultilingualEmbedder:
             from fastembed import TextEmbedding
             import os
 
-            # Use all available CPU threads for ONNX intra-op parallelism.
-            # On Railway's shared x86 vCPU, default (1 thread) gives ~185ms per
-            # embed. With multiple threads, transformer matrix multiplications
-            # parallelise across cores, cutting this to ~50-80ms.
+            # Cap ONNX threads at 2 intra-op / 1 inter-op.
+            # Railway containers are 1-2 shared vCPUs. Creating more threads
+            # than available hardware threads causes scheduling overhead that
+            # hurts rather than helps. 2 intra-op parallelises the main GEMM
+            # operations without oversubscribing the core.
             n_cpu = os.cpu_count() or 1
-            n_threads = min(n_cpu, 4)   # cap at 4: diminishing returns beyond that
+            n_threads = min(n_cpu, 2)  # Railway: 1-2 vCPU; local: max 2 to avoid oversubscription
             providers = [(
                 "CPUExecutionProvider",
                 {
                     "intra_op_num_threads": n_threads,
-                    "inter_op_num_threads": max(1, n_threads // 2),
+                    "inter_op_num_threads": 1,
                 },
             )]
             self._model = TextEmbedding(

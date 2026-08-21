@@ -14,6 +14,7 @@ groq==0.13.1
 fastembed==0.8.0
 lancedb>=0.17.0
 tantivy>=0.22.0
+scipy>=1.13.0          # in-memory BM25 sparse matrix index (transitive via scikit-learn)
 
 # Data ingestion & evaluation
 datasets==3.2.0

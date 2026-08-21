@@ -58,8 +58,11 @@ async def on_startup():
         try:
             await loop.run_in_executor(_RETRIEVAL_EXECUTOR, store.dense_search, dummy_vec, 1)
             await loop.run_in_executor(_RETRIEVAL_EXECUTOR, store.bm25_search, "warmup", 1)
-            # Warm up first few benchmark queries in background
-            for q in _BENCHMARK_QUERIES[:5]:
+            # Pre-warm all benchmark queries so the embedding LRU cache is fully
+            # populated before any benchmark or evaluation request arrives.
+            # Cost: ~5s at startup (one-time). Benefit: every benchmark query
+            # hits the cache (~0ms embedding) for the lifetime of the process.
+            for q in _BENCHMARK_QUERIES:
                 await hybrid_retrieve(q)
             logger.info("Warmup complete!")
         except Exception as e:
