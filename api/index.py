@@ -40,31 +40,28 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup():
-    """Warm up models and LanceDB index in memory so the first request is fast."""
-    logger.info("Warming up FastEmbed and LanceDB index...")
+    """Warm up models and indices into RAM so the first real request is fast."""
+    logger.info("Warming up FastEmbed model and LanceDB indices...")
     import asyncio
     from backend.retrieval.embeddings import get_embedder
     from backend.retrieval.lancedb_store import get_store
-    from backend.retrieval.retriever import hybrid_retrieve, _RETRIEVAL_EXECUTOR
-    
-    # 1. Load FastEmbed model into RAM
+    from backend.retrieval.retriever import _RETRIEVAL_EXECUTOR
+
+    # 1. Load FastEmbed ONNX model into RAM (one-time cost: ~2s)
     embedder = get_embedder()
-    
-    # 2. Page LanceDB indices into RAM (if available)
+
+    # 2. Trigger LanceDB open + vector matrix + BM25 scipy index into RAM
+    #    (one-time cost: ~5-6s for 63k docs). After this every retrieval
+    #    call uses in-RAM numpy/scipy with zero disk IO.
     store = get_store()
     if store.is_ready():
         loop = asyncio.get_running_loop()
         dummy_vec = np.zeros(384, dtype=np.float32)
         try:
+            # Fire one dummy search to force any lazy initialisation
             await loop.run_in_executor(_RETRIEVAL_EXECUTOR, store.dense_search, dummy_vec, 1)
-            await loop.run_in_executor(_RETRIEVAL_EXECUTOR, store.bm25_search, "warmup", 1)
-            # Pre-warm all benchmark queries so the embedding LRU cache is fully
-            # populated before any benchmark or evaluation request arrives.
-            # Cost: ~5s at startup (one-time). Benefit: every benchmark query
-            # hits the cache (~0ms embedding) for the lifetime of the process.
-            for q in _BENCHMARK_QUERIES:
-                await hybrid_retrieve(q)
-            logger.info("Warmup complete!")
+            await loop.run_in_executor(_RETRIEVAL_EXECUTOR, store.bm25_search, "warmup query", 1)
+            logger.info("Warmup complete — model and indices loaded into RAM.")
         except Exception as e:
             logger.warning("Warmup query failed: %s", e)
 
@@ -259,19 +256,29 @@ async def live_benchmark(
     n: int = Query(default=20, ge=5, le=50, description="Number of queries to run (5–50)"),
 ) -> dict:
     """
-    Live benchmark endpoint — judges can verify MangoVoice latency numbers directly.
+    Live benchmark — honest per-query latency measurement.
 
-    Runs n queries from a fixed multilingual test set (English, Hindi, Hinglish)
-    through the Benchmark A fast-path (extractive only — no Groq, so free-tier
-    quota is not consumed). Returns P50/P70/P100 latency breakdown per stage.
+    Each query is run with a FRESH embedding call (bypass LRU cache) and
+    bypasses the retrieval result cache so you see real compute time, not
+    dict-lookup time. This shows what a first-ever query for each question
+    actually costs on this hardware.
+
+    After the first call, repeated identical queries are served from the
+    in-process LRU cache (~0ms embedding, ~0ms retrieval) for subsequent
+    users — not reported here to avoid misleading numbers.
 
     Example: GET /api/benchmark?n=20
     """
-    from backend.retrieval.retriever import hybrid_retrieve
-    from backend.retrieval.confidence import should_generate
+    from backend.retrieval.lancedb_store import get_store
+    from backend.retrieval.embeddings import get_embedder
+    from backend.retrieval.fusion import rrf_fuse
+    from backend.retrieval.confidence import compute_retrieval_confidence, should_generate
     from backend.guardrails import normalize_text, layer1_check
     from backend.fallback.extractive import extractive_fallback
     from backend.grounding import verify_grounding_extractive
+
+    store = get_store()
+    embedder = get_embedder()
 
     queries = _BENCHMARK_QUERIES[:n]
     embed_ms_list, retr_ms_list, extr_ms_list, ground_ms_list, core_ms_list = [], [], [], [], []
@@ -291,8 +298,31 @@ async def live_benchmark(
             ground_ms_list.append(0.0)
             continue
 
+        # ── Embed: fresh call every time (bypass LRU to measure real ONNX cost)
         t0 = time.perf_counter()
-        retrieval_result, embedding_ms = await hybrid_retrieve(normalized)
+        import asyncio, concurrent.futures
+        loop = asyncio.get_running_loop()
+        query_vec = await loop.run_in_executor(
+            None, lambda: embedder.embed_one(normalized)
+        )
+        embedding_ms = (time.perf_counter() - t0) * 1000
+
+        # ── Retrieval: call store directly, bypassing retrieval result cache
+        t0 = time.perf_counter()
+        from backend.retrieval.retriever import _RETRIEVAL_EXECUTOR
+        dense_task = loop.run_in_executor(
+            _RETRIEVAL_EXECUTOR, store.dense_search, query_vec, settings.dense_top_k
+        )
+        bm25_task = loop.run_in_executor(
+            _RETRIEVAL_EXECUTOR, store.bm25_search, normalized, settings.bm25_top_k
+        )
+        dense_results, bm25_results = await asyncio.gather(dense_task, bm25_task)
+        fused = rrf_fuse(dense_results, bm25_results, top_k=settings.final_top_k)
+        retrieval_result = compute_retrieval_confidence(
+            sources=fused,
+            dense_sources=dense_results,
+            bm25_sources=bm25_results,
+        )
         retrieval_ms = (time.perf_counter() - t0) * 1000
 
         if not should_generate(retrieval_result):
@@ -334,8 +364,11 @@ async def live_benchmark(
     return {
         "benchmark": "A — Fast-path RAG (extractive, no LLM)",
         "description": (
-            "normalize → guardrails → embed → retrieve → extractive → "
-            "grounding_extractive → response. Groq excluded (no free-tier quota consumed)."
+            "normalize → guardrails → embed (fresh ONNX, no cache) → "
+            "retrieve (RAM: numpy dense + scipy BM25, no cache) → "
+            "extractive → grounding_extractive → response. "
+            "Groq excluded (no free-tier quota consumed). "
+            "Embedding and retrieval caches BYPASSED for honest measurement."
         ),
         "n_queries": len(queries),
         "query_languages": "English, Hindi, Hinglish",
@@ -349,6 +382,12 @@ async def live_benchmark(
         "rag_core_total": _stats(core_ms_list),
         "sla_target_ms": 200,
         "sla_met": all(v <= 200 for v in core_ms_list),
+        "note_cache_benefit": (
+            "Repeated queries (same question asked again) are served from "
+            "process-local LRU cache: embedding ~0ms, retrieval ~0ms. "
+            "This benchmark deliberately bypasses caches to show worst-case "
+            "(first-ever query) latency."
+        ),
         "note_benchmark_b": (
             "LLM-enhanced (Groq) latency: ~700-1500ms P50. "
             "Run: python -m evaluation.latency_benchmark --mode b"
