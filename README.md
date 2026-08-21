@@ -417,8 +417,8 @@ Railway (FastAPI + Docker)           ← internal Railway URL
 
 - STT latency (Sarvam REST round-trip) is not part of the 200ms RAG core target — it is always reported separately
 - Railway Docker container runs 24/7 on the Hobby plan with the vector index pre-warmed in RAM (zero cold-start latency)
-- BM25 performance on Devanagari script may be lower than English; dense retrieval compensates
-- Free Groq quota may rate-limit under heavy concurrent traffic — system will refuse cleanly rather than hallucinate
+- BM25 IDF weights for Devanagari are less precise than English due to limited document frequency statistics for morphological variants (the tokenizer itself is Unicode-aware and handles Devanagari correctly via `[\w\u0900-\u097F]+`); dense retrieval compensates
+- Free Groq quota may rate-limit under heavy concurrent traffic — the AI-enhanced (🧠) progressive upgrade simply won't arrive, but the extractive answer is always returned to the user regardless; the system never refuses or hallucinates due to Groq unavailability
 - TTS is limited to 500 chars per request (Sarvam API limit)
 
 ---
