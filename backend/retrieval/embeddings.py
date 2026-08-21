@@ -31,13 +31,32 @@ class MultilingualEmbedder:
             return
         try:
             from fastembed import TextEmbedding
+            import os
+
+            # Use all available CPU threads for ONNX intra-op parallelism.
+            # On Railway's shared x86 vCPU, default (1 thread) gives ~185ms per
+            # embed. With multiple threads, transformer matrix multiplications
+            # parallelise across cores, cutting this to ~50-80ms.
+            n_cpu = os.cpu_count() or 1
+            n_threads = min(n_cpu, 4)   # cap at 4: diminishing returns beyond that
+            providers = [(
+                "CPUExecutionProvider",
+                {
+                    "intra_op_num_threads": n_threads,
+                    "inter_op_num_threads": max(1, n_threads // 2),
+                },
+            )]
             self._model = TextEmbedding(
                 model_name=settings.embedding_model,
                 max_length=512,
                 cache_dir=settings.fastembed_cache_dir,
+                providers=providers,
             )
             self._ready = True
-            logger.info("Embedding model loaded: %s", settings.embedding_model)
+            logger.info(
+                "Embedding model loaded: %s (ONNX threads: intra=%d inter=%d)",
+                settings.embedding_model, n_threads, max(1, n_threads // 2),
+            )
         except Exception as exc:
             logger.error("Failed to load embedding model: %s", exc)
             raise

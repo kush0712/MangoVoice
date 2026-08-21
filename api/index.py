@@ -76,11 +76,20 @@ async def health() -> HealthResponse:
         embedder = get_embedder()
         index_ok = store.is_ready()
         embedder_ok = embedder.is_ready()
+        numpy_ok = store._vec_normed is not None
+        n_vecs = int(store._vec_normed.shape[0]) if numpy_ok else 0
     except Exception as exc:
         logger.warning("Health check degraded: %s", exc)
         index_ok = False
         embedder_ok = False
+        numpy_ok = False
+        n_vecs = 0
 
+    # Log so we can confirm from Railway logs whether numpy index loaded
+    logger.info(
+        "Health: index=%s embedder=%s numpy_in_ram=%s vecs=%d",
+        index_ok, embedder_ok, numpy_ok, n_vecs,
+    )
     return HealthResponse(
         status="ready" if (index_ok and embedder_ok) else "degraded",
         index_version=settings.index_version,
