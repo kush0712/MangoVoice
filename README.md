@@ -16,7 +16,7 @@ MangoVoice is a voice-first, grounded RAG system over [`ai4bharat/MSMARCO-XI`](h
 2. 📝 Sarvam Saaras v3 transcribes your speech (auto language detection: `unknown` mode enables codemix)
 3. 🔎 LanceDB hybrid retrieval (dense ANN + BM25 + RRF) finds evidence — dense and BM25 run concurrently in a thread pool
 4. 🛡 4-layer guardrail system checks safety and confidence at every stage
-5. ⚡ Extractive fast-path answer — best-matching sentence from top source, grounded and returned in **<50ms P50 RAG core** (no LLM on the critical path)
+5. ⚡ Extractive fast-path answer — best-matching sentence from top source, grounded and returned in **53.46ms P50 RAG core** (P100 < 65ms, no LLM on the critical path)
 6. 🧠 Groq (openai/gpt-oss-20b) fires as a background task (fire-and-forget, result discarded) — never blocks the response
 7. ⚡ Lightweight grounding verifier ensures the extractive answer cites real evidence (citation check + entity/number overlap, ~0ms)
 8. 🔊 Sarvam Bulbul v2 TTS reads the answer aloud in the detected language (Hindi/English)
@@ -213,15 +213,15 @@ Three clearly-labelled benchmarks — judges should read all three:
 
 **Benchmark A — Fast-path RAG** ← the `<200ms` SLA path (what users experience):
 ```
-normalize → guardrails → embed → retrieve → extractive → grounding_extractive → response
+normalize → guardrails → embed (fresh ONNX, no cache) → retrieve (RAM: numpy dense + numpy BM25, no cache) → extractive → grounding_extractive → response
 ```
-Groq is **not** on this path. P50 target: **<50ms** (typically ~7ms on Railway warm).
+Groq is **not** on this critical path. P50 target: **<200ms** (measured live at **53.46ms P50, 64.78ms P100** on Railway Hobby Plan).
 
 **Benchmark B — LLM-enhanced pipeline** (honest measurement):
 ```
 same as A + Groq generation + full grounding verifier
 ```
-Reported honestly. Groq free-tier adds **700–1500ms P50**. Not the user-visible SLA.
+Reported honestly. Groq free-tier adds **700–1500ms P50**. Not on the critical path.
 
 **Benchmark C — Full voice E2E** (reported separately):
 ```
@@ -229,54 +229,37 @@ Sarvam STT (~300-800ms network round-trip) + Benchmark A RAG core
 ```
 STT is always a network call. Never combined with A or B — LatencyMetrics.stt_ms is separate.
 
-Verify live: `curl -s "https://mango-voice.vercel.app/api/benchmark?n=50"` (runs Benchmark A on Railway with 50 multilingual queries). Supports `?n=5–50` — warm LRU cache keeps all queries fast.
+Verify live: `curl -s "https://mango-voice.vercel.app/api/benchmark?n=50"` (runs Benchmark A on Railway with 50 multilingual queries, caching explicitly bypassed).
 
 ---
 
 ## 12. P50 / P70 / P100 Results
 
 Measured live against the production API via `curl -s "https://mango-voice.vercel.app/api/benchmark?n=50" | python3 -m json.tool`.
-Two consecutive runs on 2026-08-20 — numbers are stable.
+Evaluated across 50 multilingual queries (English, Hindi, Hinglish) with **all caches bypassed** for honest worst-case measurement.
 
 ### Benchmark A — Fast-path RAG (user-visible SLA path)
 
 ```text
-MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=50, live Railway)
-normalize → guardrails → embed → retrieve → extractive → grounding_extractive
-Answer Rate: 50/50 (100%)  SLA target: 200ms  SLA met: ✓
+MANGOVOICE LATENCY BENCHMARK — A (Fast-path RAG, N=50, live Railway Hobby Plan)
+normalize → guardrails → embed (fresh ONNX) → retrieve (RAM numpy dense + BM25) → extractive → grounding
+Answer Rate: 50/50 (100%)  SLA target: 200ms  SLA met: ✓ (P100 < 65ms)
 ```
 
-| Scenario | Embedding | Retrieval | Total RAG Core |
-|----------|-----------|-----------|----------------|
-| Cold (1st query after deploy) | ~12ms | ~6ms | ~19ms |
-| Warm (subsequent queries, LRU cache) | ~0.01ms | ~6.6ms | ~7.0ms |
-| **P50 across 50 mixed queries** | **0.01ms** | **6.65ms** | **7.04ms** |
-
-**Embedding latency — cold vs warm (important):**
-
-| Scenario | Embedding latency | Explanation |
-|---|---|---|
-| Cold — first unique query string | ~12ms | FastEmbed ONNX runs inference via `model.embed()` |
-| Warm — repeated / cached string | ~0.01ms | `@lru_cache(maxsize=256)` returns cached tuple instantly |
-
-The benchmark P50 of `0.01ms` reflects warm LRU cache hits across 50 queries (several repeat identical strings). Any **new, unseen query** will pay the ~12ms ONNX inference cost once, then be cached. This is expected and by design — the cache removes redundant embedding calls for repeated questions without affecting correctness.
-
-**Full Breakdown — live Railway, 50 mixed queries (EN/HI/Hinglish), warm:**
+**Full Breakdown — Live Production (50 mixed queries, caches bypassed):**
 ```text
 Stage                          P50 (ms)   P70 (ms)   P100 (ms)  Mean (ms)
 -------------------------------------------------------------------------
-Embedding (FastEmbed/LRU)          0.01       0.01       0.18       0.02  ← warm cache
-Retrieval (LanceDB Hybrid)         6.65       7.65      11.23       6.92
-Safety (L1 Deterministic)          0.00       0.00       0.00       0.00
-Extractive Answer                  0.28       0.29       0.38       0.28
-Grounding Extractive               0.01       0.06       0.10       0.03
+Embedding (FastEmbed ONNX)        41.92      43.45      54.05      42.05
+Retrieval (LanceDB RAM Hybrid)    11.04      11.62      14.76      11.26
+Extractive Answer                  0.32       0.36       0.47       0.33
+Grounding Extractive               0.16       0.17       0.21       0.15
 -------------------------------------------------------------------------
-RAG Core Total (warm)              7.04       8.04      11.59       7.27
-RAG Core Total (cold, ~1st query)  ~19ms      —          —          —
+RAG Core Total (Worst-case)       53.46      55.47      64.78      53.84
 -------------------------------------------------------------------------
 ```
 
-*Source: Live call on 2026-08-20 via `GET /api/benchmark?n=50`. Verify anytime: https://mango-voice.vercel.app/api/benchmark?n=50*
+*Source: Live call on Railway Hobby Plan via `GET /api/benchmark?n=50`. Verify anytime: https://mango-voice.vercel.app/api/benchmark?n=50*
 
 ### Benchmark B — LLM-enhanced pipeline (Groq, honest measurement)
 
@@ -290,12 +273,12 @@ RAG Core Total (incl. Groq)    ~1530      ~1830      ~2600
 † Groq free-tier. Numbers vary with API load. Reported honestly.
 ```
 
-**Note to Evaluators:** We use a 20 Billion parameter model (`gpt-oss-20b`) that takes ~1.5 seconds to run, but thanks to our async fast-path architecture (Benchmark A), the user gets their answer in under 200ms because the LLM is off the critical path. The polished LLM answer arrives in the background and is swapped into the UI ~1.6s later (progressive enhancement).
+**Note to Evaluators:** We use a 20 Billion parameter model (`gpt-oss-20b`) that takes ~1.5 seconds to run, but thanks to our async fast-path architecture (Benchmark A), the user gets their answer in under 200ms (53.46ms P50) because the LLM is off the critical path. The polished LLM answer arrives in the background and is swapped into the UI ~1.6s later (progressive enhancement).
 
 ### Benchmark C — Voice E2E
 ```
 Sarvam STT (network round-trip): ~300–800ms (measured separately, LatencyMetrics.stt_ms)
-Full E2E = stt_ms + Benchmark A rag_core ≈ 306–820ms
+Full E2E = stt_ms + Benchmark A rag_core ≈ 350–850ms
 ```
 
 Verify live: `curl -s "https://mango-voice.vercel.app/api/benchmark?n=50"` → returns P50/P70/P100 JSON directly from Railway. Supports `?n=5–50`.
@@ -413,7 +396,7 @@ Railway (FastAPI + Docker)           ← internal Railway URL
 ## 16. Limitations
 
 - STT latency (Sarvam REST round-trip) is not part of the 200ms RAG core target — it is always reported separately
-- Railway Docker container has a cold start on first deploy (~60-90s for uvicorn + embedder model load)
+- Railway Docker container runs 24/7 on the Hobby plan with the vector index pre-warmed in RAM (zero cold-start latency)
 - BM25 performance on Devanagari script may be lower than English; dense retrieval compensates
 - Free Groq quota may rate-limit under heavy concurrent traffic — system will refuse cleanly rather than hallucinate
 - TTS is limited to 500 chars per request (Sarvam API limit)
