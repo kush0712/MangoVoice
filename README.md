@@ -14,11 +14,11 @@ MangoVoice is a voice-first, grounded RAG system over [`ai4bharat/MSMARCO-XI`](h
 
 1. 🎙 Press the microphone — speak in Hindi, English, or Hinglish (or type a query directly in text mode)
 2. 📝 Sarvam Saaras v3 transcribes your speech (auto language detection: `unknown` mode enables codemix)
-3. 🔎 LanceDB hybrid retrieval (dense ANN + BM25 + RRF) finds evidence — dense and BM25 run concurrently in a thread pool
+3. 🔎 LanceDB hybrid retrieval (dense ANN + BM25 + RRF) finds evidence — both run sequentially against in-memory numpy indexes (~11ms total, zero disk IO)
 4. 🛡 4-layer guardrail system checks safety and confidence at every stage
 5. ⚡ Extractive fast-path answer — best-matching sentence from top source, grounded and returned in **53.46ms P50 RAG core** (P100 < 65ms, no LLM on the critical path)
 6. 🧠 Groq (openai/gpt-oss-20b) fires as a background task (fire-and-forget, result discarded) — never blocks the response
-7. ⚡ Lightweight grounding verifier ensures the extractive answer cites real evidence (citation check + entity/number overlap, ~0ms)
+7. ⚡ Lightweight grounding verifier ensures the extractive answer cites real evidence (citation existence check + substring fingerprint, ~0ms)
 8. 🔊 Sarvam Bulbul v2 TTS reads the answer aloud in the detected language (Hindi/English)
 9. ✅ You see the answer + cited sources + `answer_source` tag + per-stage latency breakdown
 
@@ -122,14 +122,14 @@ The frontend uses all five endpoints: health polling (30s interval), Vercel STT 
 | Frontend | Next.js 16 + TypeScript | Vercel native, RSC |
 | Styling | Tailwind CSS v4 | Design system from design.md |
 | Voice Input | Web Audio API + MediaRecorder | Browser-native, no SDK |
-| Audio format detection | Header-byte sniff (WAV/WebM/OGG/MP4/AAC) | Cross-browser compatibility |
+| Audio format detection | MIME type detection from `audioBlob.type` (WebM/MP4/OGG/WAV/AAC) | Cross-browser compatibility |
 | VAD | Client-side amplitude detection + silence timeout (2.5s) | No external SDK |
 | STT | **Sarvam Saaras v3** REST (`saaras:v3`) | Indic-first, codemix support |
 | TTS | **Sarvam Bulbul v2** REST (`bulbul:v2`, speaker=anushka) | Authentic Indic voice |
 | Embeddings | **FastEmbed + ONNX** | Local, zero API cost, LRU-cached |
 | Embedding model | `paraphrase-multilingual-MiniLM-L12-v2` | 384-dim, Hindi/English/Hinglish |
 | Vector DB | **LanceDB OSS embedded** | Local, BM25+ANN, zero cost |
-| Hybrid search | Dense ANN top-20 + BM25 top-20 + RRF (k=60) → top-8 | Best of semantic + lexical |
+| Hybrid search | Dense top-20 + BM25 top-20 + RRF (k=60) → top-10 (config: `final_top_k=10`) | Best of semantic + lexical |
 | Generation | **Groq openai/gpt-oss-20b** | Fast, free tier |
 | Safety model | **Groq meta-llama/llama-prompt-guard-2-22m** | Dedicated prompt guard |
 | Output format | Tool-contract (`answer_from_context` / `refuse`) | Structured, refusal-first |
@@ -213,10 +213,10 @@ Dense handles semantic paraphrases; BM25 handles exact names, numbers, acronyms.
 
 | Layer | What it does | Threshold / Model |
 |-------|-------------|-------------------|
-| **L1 Deterministic** | Unicode NFC normalize + length cap (512 chars) + 15-pattern injection regex + unsafe content regex | ~0ms, every query |
-| **L2 Prompt Guard** | Groq `meta-llama/llama-prompt-guard-2-22m` classification | Parallel with retrieval, timeout 3s, fail-open |
+| **L1 Deterministic** | Unicode NFC normalize + length cap (512 chars) + 14-pattern injection regex + unsafe content regex | ~0ms, every query |
+| **L2 Prompt Guard** | Groq `meta-llama/llama-prompt-guard-2-22m` classification | Background `asyncio.create_task`, timeout 3s, fail-open (sets `safety_degraded=True`) |
 | **L3 Confidence Gate** | `confidence = 0.70 × norm_dense_sim + 0.20 × cross_modal_agree + 0.10 × count_bonus`. Threshold: 0.50. Borderline: requires cross-modal agreement + ≥2 sources. | After retrieval |
-| **L4 Grounding Verifier (extractive)** | Citation existence + entity/number overlap. Score = overlap ≥ 0.40. ~0ms (no embedding). | After extractive answer |
+| **L4 Grounding Verifier (extractive)** | Citation existence check + substring fingerprint (first 60 chars of snippet must appear in cited source text). Binary score: 1.0 (pass) or 0.0 (fail). ~0ms (no embedding). | After extractive answer |
 
 The system **refuses** at every gate. Refusal is a first-class outcome, not an afterthought.  
 `RefusalReason` enum covers: `low_confidence`, `safety_violation`, `unsafe_input`, `prompt_injection`, `no_evidence`, `grounding_failed`, `stt_failed`, `generation_unavailable`, `timeout`.
@@ -395,7 +395,7 @@ Railway (FastAPI + Docker)           ← internal Railway URL
 
 ### Backend — Railway
 
-- **What:** FastAPI + uvicorn serving the full RAG pipeline (STT → guardrails → retrieval → generation → grounding → TTS)
+- **What:** FastAPI + uvicorn serving the RAG pipeline (guardrails → retrieval → extractive answer → background Groq generation → grounding → TTS). STT is handled by the Vercel Edge `/api/stt` route, not Railway.
 - **Config:** [`railway.json`](railway.json) — tells Railway to build via `Dockerfile` and start with `startup.sh`
 - **Docker strategy:** [`Dockerfile`](Dockerfile) **bakes the LanceDB index directly into the image** at build time by downloading from GitHub Releases (`v1.0.0-index`). This completely bypasses Railway's volume disk limits (was hitting "No space left on device" with runtime downloads)
 - **Startup:** [`startup.sh`](startup.sh) — simply starts uvicorn; no runtime download needed since index is already in `/app/data/lancedb`
