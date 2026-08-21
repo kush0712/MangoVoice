@@ -149,6 +149,7 @@ class HealthResponse(BaseModel):
     embedding_model: str
     index_ready: bool
     embedder_ready: bool
+    numpy_in_ram: bool = False
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 

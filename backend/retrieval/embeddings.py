@@ -41,7 +41,7 @@ class MultilingualEmbedder:
             providers = [(
                 "CPUExecutionProvider",
                 {
-                    "intra_op_num_threads": 2,
+                    "intra_op_num_threads": n_threads,
                     "inter_op_num_threads": 1,
                 },
             )]

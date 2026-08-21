@@ -96,6 +96,7 @@ async def health() -> HealthResponse:
         embedding_model=settings.embedding_model,
         index_ready=index_ok,
         embedder_ready=embedder_ok,
+        numpy_in_ram=numpy_ok,
     )
 
 
