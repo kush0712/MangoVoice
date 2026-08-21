@@ -33,18 +33,16 @@ class MultilingualEmbedder:
             from fastembed import TextEmbedding
             import os
 
-            # 2 intra-op threads: enough to parallelise the main GEMM operations
-            # and stay well under 200ms SLA. Railway bills on actual CPU-seconds
-            # consumed (not the vCPU ceiling), so 2 threads × 140ms ≈ 4 threads
-            # × 70ms in total cost — 2 threads is the right trade-off for a
-            # low-traffic demo with a $4 credit budget.
+            # 4 intra-op threads = same Railway billing cost as 2 threads.
+            # Railway charges on total vCPU-seconds: 4 threads × 70ms =
+            # 2 threads × 140ms = identical cost. Faster is better — same bill.
             n_cpu = os.cpu_count() or 1
-            n_threads = min(n_cpu, 2)
+            n_threads = min(n_cpu, 4)
             providers = [(
                 "CPUExecutionProvider",
                 {
                     "intra_op_num_threads": n_threads,
-                    "inter_op_num_threads": 1,
+                    "inter_op_num_threads": min(2, n_threads),
                 },
             )]
             self._model = TextEmbedding(
