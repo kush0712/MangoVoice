@@ -33,18 +33,18 @@ class MultilingualEmbedder:
             from fastembed import TextEmbedding
             import os
 
-            # 4 intra-op threads is the sweet spot for MiniLM-L12 on multi-core.
-            # Railway container has 8 vCPU — 4 threads parallelises the main
-            # attention + FFN matrix multiplications without scheduler overhead.
-            # Inter-op=2 allows independent graph nodes (attention vs FFN path)
-            # to run concurrently, giving additional throughput.
+            # 2 intra-op threads: enough to parallelise the main GEMM operations
+            # and stay well under 200ms SLA. Railway bills on actual CPU-seconds
+            # consumed (not the vCPU ceiling), so 2 threads × 140ms ≈ 4 threads
+            # × 70ms in total cost — 2 threads is the right trade-off for a
+            # low-traffic demo with a $4 credit budget.
             n_cpu = os.cpu_count() or 1
-            n_threads = min(n_cpu, 4)  # sweet spot: 4 on 8-vCPU Railway container
+            n_threads = min(n_cpu, 2)
             providers = [(
                 "CPUExecutionProvider",
                 {
                     "intra_op_num_threads": n_threads,
-                    "inter_op_num_threads": min(2, n_threads),
+                    "inter_op_num_threads": 1,
                 },
             )]
             self._model = TextEmbedding(
