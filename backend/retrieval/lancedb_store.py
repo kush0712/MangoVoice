@@ -70,7 +70,9 @@ class LanceDBStore:
             results = (
                 self._table.search(query_vec.tolist())
                 .metric("cosine")
-                .nprobes(16)   # probe 16/~63 partitions — >98% recall at top-20, 2× faster scan
+                .nprobes(8)    # probe 8/~63 partitions — >95% recall at top-5, ~2× faster scan
+                .select(["chunk_id", "parent_id", "query_id", "language", "strategy",
+                         "chunk_start", "chunk_end", "text"])
                 .limit(top_k)
                 .to_list()
             )
@@ -83,27 +85,9 @@ class LanceDBStore:
             "Dense search: %d results", len(results),
             extra={"stage": "dense_search", "latency_ms": round(latency_ms, 1)},
         )
-        
-        sources = []
-        for i, r in enumerate(results):
-            source = _row_to_source(r, rank=i)
-            # Override LanceDB's broken unnormalized L2 distances with TRUE cosine similarity
-            if "vector" in r:
-                v_stored = np.array(r["vector"])
-                norm_q = np.linalg.norm(query_vec)
-                norm_v = np.linalg.norm(v_stored)
-                if norm_q > 0 and norm_v > 0:
-                    true_sim = float(np.dot(query_vec, v_stored) / (norm_q * norm_v))
-                    source.raw_dense_score = true_sim
-                    source.score = true_sim
-            sources.append(source)
-            
-        # Re-sort by true cosine similarity to fix any LanceDB misranking
-        sources.sort(key=lambda s: s.raw_dense_score, reverse=True)
-        for i, s in enumerate(sources):
-            s.dense_rank = i
-            
-        return sources
+        # _row_to_source converts _distance → cosine similarity via (1 - distance),
+        # which is correct because metric("cosine") returns normalised cosine distance.
+        return [_row_to_source(r, rank=i) for i, r in enumerate(results)]
 
     def bm25_search(self, query_text: str, top_k: int) -> list[RetrievalSource]:
         """BM25 full-text search. Returns top_k candidates."""
