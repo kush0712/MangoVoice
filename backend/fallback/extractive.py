@@ -123,30 +123,18 @@ def extractive_fallback(
             best_source = source
 
     if best_overlap >= 1:
-        # ── Semantic Verification (Zero Redundant CPU Inference) ───────────
-        # LanceDB already computed the exact cosine similarity between the query 
-        # and this source chunk during dense retrieval (preserved in raw_dense_score).
-        # Reusing this pre-computed score avoids 4-second CPU re-embeddings.
+        # LanceDB already computed exact cosine similarity during dense retrieval (raw_dense_score)
         chunk_sim = getattr(best_source, "raw_dense_score", 0.0) or best_source.score
 
-        # Rule 1: Good semantic relevance (>=0.50) with strong keyword overlap (>=2)
-        passed_rule1 = chunk_sim >= 0.50 and best_overlap >= 2
+        # Fast verification: good semantic match (>=0.45) OR strong keyword overlap (>=2)
+        # OR moderate semantic match (>=0.30) with keyword overlap
+        passed = (
+            (chunk_sim >= 0.45 and best_overlap >= 1)
+            or (best_overlap >= 2)
+            or (chunk_sim >= 0.30 and best_overlap >= 1)
+        )
 
-        # Rule 2: High semantic relevance (>=0.60) with at least 1 keyword match
-        passed_rule2 = chunk_sim >= 0.60 and best_overlap >= 1
-
-        # Fallback Rule 3: For borderline cases, embed only the single short candidate sentence
-        passed_rule3 = False
-        if not (passed_rule1 or passed_rule2) and best_overlap >= 1 and chunk_sim >= 0.40:
-            q_vec = embed_query(query)
-            s_vec = embed_query(best_snippet)
-            norm_q = np.linalg.norm(q_vec)
-            norm_s = np.linalg.norm(s_vec)
-            if norm_q > 0 and norm_s > 0:
-                sent_sim = float(np.dot(q_vec, s_vec) / (norm_q * norm_s))
-                passed_rule3 = sent_sim >= 0.55
-
-        if passed_rule1 or passed_rule2 or passed_rule3:
+        if passed:
             answer = (
                 f'Based on the retrieved evidence:\n\n'
                 f'"{best_snippet}"\n\n'

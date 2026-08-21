@@ -41,13 +41,13 @@ class MultilingualEmbedder:
             providers = [(
                 "CPUExecutionProvider",
                 {
-                    "intra_op_num_threads": 1,
+                    "intra_op_num_threads": 2,
                     "inter_op_num_threads": 1,
                 },
             )]
             self._model = TextEmbedding(
                 model_name=settings.embedding_model,
-                max_length=512,
+                max_length=128,
                 cache_dir=settings.fastembed_cache_dir,
                 providers=providers,
             )

@@ -61,15 +61,9 @@ async def hybrid_retrieve(query: str) -> tuple[RetrievalResult, float]:
     query_vec = embed_query(query)
     embedding_ms = (time.perf_counter() - t_embed) * 1000
 
-    # ── Dense + BM25 concurrently (cache miss: full IO) ───────────────────────
-    loop = asyncio.get_running_loop()
-    dense_task = loop.run_in_executor(
-        _RETRIEVAL_EXECUTOR, store.dense_search, query_vec, settings.dense_top_k
-    )
-    bm25_task = loop.run_in_executor(
-        _RETRIEVAL_EXECUTOR, store.bm25_search, query, settings.bm25_top_k
-    )
-    dense_results, bm25_results = await asyncio.gather(dense_task, bm25_task)
+    # ── Dense + BM25 in-memory search (2-3ms total, zero disk IO) ───────────
+    dense_results = store.dense_search(query_vec, settings.dense_top_k)
+    bm25_results = store.bm25_search(query, settings.bm25_top_k)
 
     # ── Fuse + confidence ─────────────────────────────────────────────────────
     fused = rrf_fuse(dense_results, bm25_results, top_k=settings.final_top_k)

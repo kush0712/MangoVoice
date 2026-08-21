@@ -250,7 +250,7 @@ class LanceDBStore:
         t0 = time.perf_counter()
 
         norm_q = np.linalg.norm(query_vec)
-        if norm_q == 0:
+        if norm_q == 0 or np.isnan(norm_q):
             return []
         q_normed = (query_vec / norm_q).astype(np.float32)
 
