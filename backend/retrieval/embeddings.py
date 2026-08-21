@@ -41,8 +41,8 @@ class MultilingualEmbedder:
             providers = [(
                 "CPUExecutionProvider",
                 {
-                    "intra_op_num_threads": n_threads,
-                    "inter_op_num_threads": min(2, n_threads),
+                    "intra_op_num_threads": 1,
+                    "inter_op_num_threads": 1,
                 },
             )]
             self._model = TextEmbedding(
