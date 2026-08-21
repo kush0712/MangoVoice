@@ -70,9 +70,7 @@ class LanceDBStore:
             results = (
                 self._table.search(query_vec.tolist())
                 .metric("cosine")
-                .nprobes(8)    # probe 8/~63 partitions — >95% recall at top-5, ~2× faster scan
-                .select(["chunk_id", "parent_id", "query_id", "language", "strategy",
-                         "chunk_start", "chunk_end", "text"])
+                .nprobes(8)    # probe 8/~63 partitions — >95% recall, ~2× faster scan
                 .limit(top_k)
                 .to_list()
             )
@@ -85,9 +83,31 @@ class LanceDBStore:
             "Dense search: %d results", len(results),
             extra={"stage": "dense_search", "latency_ms": round(latency_ms, 1)},
         )
-        # _row_to_source converts _distance → cosine similarity via (1 - distance),
-        # which is correct because metric("cosine") returns normalised cosine distance.
-        return [_row_to_source(r, rank=i) for i, r in enumerate(results)]
+
+        # The index uses IVF_PQ (Product Quantization): _distance from LanceDB during
+        # ANN search is computed on quantized/compressed vectors, introducing approximation
+        # error. For the confidence gate to work correctly, raw_dense_score must be the
+        # TRUE cosine similarity computed from the original stored float32 vectors.
+        # We fetch the vector column and recompute exactly for each result.
+        sources = []
+        for i, r in enumerate(results):
+            source = _row_to_source(r, rank=i)
+            if "vector" in r:
+                v_stored = np.array(r["vector"], dtype=np.float32)
+                norm_q = np.linalg.norm(query_vec)
+                norm_v = np.linalg.norm(v_stored)
+                if norm_q > 0 and norm_v > 0:
+                    true_sim = float(np.dot(query_vec, v_stored) / (norm_q * norm_v))
+                    source.raw_dense_score = true_sim
+                    source.score = true_sim
+            sources.append(source)
+
+        # Re-sort by exact cosine similarity (PQ may return results in wrong order)
+        sources.sort(key=lambda s: s.raw_dense_score, reverse=True)
+        for i, s in enumerate(sources):
+            s.dense_rank = i
+
+        return sources
 
     def bm25_search(self, query_text: str, top_k: int) -> list[RetrievalSource]:
         """BM25 full-text search. Returns top_k candidates."""
