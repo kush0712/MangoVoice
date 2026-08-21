@@ -47,9 +47,8 @@ class MultilingualEmbedder:
             )]
             self._model = TextEmbedding(
                 model_name=settings.embedding_model,
-                max_length=128,
+                threads=n_threads,
                 cache_dir=settings.fastembed_cache_dir,
-                providers=providers,
             )
             self._ready = True
             logger.info(

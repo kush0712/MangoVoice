@@ -213,7 +213,7 @@ async def orchestrate_query(
     parallel_ms = (time.perf_counter() - t_parallel) * 1000
     latency.safety_ms = l1.latency_ms  # only L1 cost counted on critical path
     latency.embedding_ms = embedding_ms
-    latency.retrieval_ms = parallel_ms
+    latency.retrieval_ms = max(0.0, parallel_ms - embedding_ms)
 
     # ── Stage 5: Confidence gate ─────────────────────────────────────────────
     if not should_generate(retrieval_result):
