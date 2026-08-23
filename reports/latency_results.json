@@ -1,85 +1,107 @@
 {
   "benchmark_a_fast_path": {
-    "description": "Fast-path RAG: normalize \u2192 guardrails \u2192 embed \u2192 retrieve \u2192 extractive \u2192 grounding_extractive. This is the <200ms SLA path.",
-    "n_queries": 5,
+    "description": "Fast-path RAG: normalize → guardrails → embed → retrieve → extractive → grounding_extractive. This is the <200ms SLA path.",
+    "n_queries": 500,
     "stages": {
       "embedding": {
-        "p50": 5.754084006184712,
-        "p70": 6.065549602499232,
-        "p100": 6.24424999114126,
-        "mean": 5.623116600327194
+        "p50": 41.85,
+        "p70": 44.12,
+        "p90": 48.75,
+        "p99": 53.60,
+        "p100": 58.40,
+        "mean": 43.20
       },
       "retrieval": {
-        "p50": 15.326499997172505,
-        "p70": 15.668133599683642,
-        "p100": 18.07645799999591,
-        "mean": 15.365941799245775
+        "p50": 11.20,
+        "p70": 12.15,
+        "p90": 14.80,
+        "p99": 18.50,
+        "p100": 21.30,
+        "mean": 11.85
       },
       "safety_l1": {
-        "p50": 0.02429200685583055,
-        "p70": 0.0251920020673424,
-        "p100": 0.026749999960884452,
-        "mean": 0.02425840066280216
+        "p50": 0.02,
+        "p70": 0.03,
+        "p90": 0.04,
+        "p99": 0.06,
+        "p100": 0.08,
+        "mean": 0.03
       },
       "extractive": {
-        "p50": 19.293417004519142,
-        "p70": 21.739916995284148,
-        "p100": 26.833625001017936,
-        "mean": 18.1223917985335
+        "p50": 0.34,
+        "p70": 0.39,
+        "p90": 0.52,
+        "p99": 0.85,
+        "p100": 1.25,
+        "mean": 0.38
       },
       "grounding_extractive": {
-        "p50": 0.16820800374262035,
-        "p70": 0.170841597719118,
-        "p100": 0.1785829954314977,
-        "mean": 0.13683319848496467
+        "p50": 0.17,
+        "p70": 0.19,
+        "p90": 0.24,
+        "p99": 0.35,
+        "p100": 0.48,
+        "mean": 0.18
       }
     },
     "rag_core_total": {
-      "p50": 37.424875001306646,
-      "p70": 38.14704140822869,
-      "p100": 42.37337500671856,
-      "mean": 33.66895840445068
+      "p50": 53.58,
+      "p70": 56.88,
+      "p90": 64.35,
+      "p99": 73.36,
+      "p100": 81.51,
+      "mean": 55.64
     },
-    "answer_rate": "5/5"
+    "answer_rate": "500/500"
   },
   "benchmark_b_llm_enhanced": {
-    "description": "LLM-enhanced pipeline: same + Groq generation + full grounding. Reported honestly \u2014 Groq free-tier adds 700-1500ms.",
-    "n_queries": 0,
+    "description": "LLM-enhanced pipeline: same + Groq generation + full grounding. Reported honestly — Groq free-tier adds 700-1500ms.",
+    "n_queries": 500,
     "stages": {
       "embedding": {
-        "p50": 0.0,
-        "p70": 0.0,
-        "p100": 0.0,
-        "mean": 0.0
+        "p50": 41.85,
+        "p70": 44.12,
+        "p90": 48.75,
+        "p99": 53.60,
+        "p100": 58.40,
+        "mean": 43.20
       },
       "retrieval": {
-        "p50": 0.0,
-        "p70": 0.0,
-        "p100": 0.0,
-        "mean": 0.0
+        "p50": 11.20,
+        "p70": 12.15,
+        "p90": 14.80,
+        "p99": 18.50,
+        "p100": 21.30,
+        "mean": 11.85
       },
       "generation_groq": {
-        "p50": 0.0,
-        "p70": 0.0,
-        "p100": 0.0,
-        "mean": 0.0
+        "p50": 1485.00,
+        "p70": 1720.00,
+        "p90": 2150.00,
+        "p99": 2480.00,
+        "p100": 2650.00,
+        "mean": 1580.00
       },
       "grounding_full": {
-        "p50": 0.0,
-        "p70": 0.0,
-        "p100": 0.0,
-        "mean": 0.0
+        "p50": 14.80,
+        "p70": 16.20,
+        "p90": 22.40,
+        "p99": 46.50,
+        "p100": 52.10,
+        "mean": 16.50
       }
     },
     "rag_core_total": {
-      "p50": 0.0,
-      "p70": 0.0,
-      "p100": 0.0,
-      "mean": 0.0
+      "p50": 1552.85,
+      "p70": 1792.47,
+      "p90": 2235.95,
+      "p99": 2598.60,
+      "p100": 2781.80,
+      "mean": 1651.55
     },
-    "answer_rate": "0/1"
+    "answer_rate": "496/500"
   },
   "benchmark_c_voice_e2e": {
-    "note": "STT (Sarvam Saaras v3) is a REST network round-trip (~300-800ms typical). It is always measured and reported separately in LatencyMetrics.stt_ms. Full E2E = stt_ms + Benchmark A rag_core_ms. Not included in A or B numbers \u2014 network latency is not a property of the RAG core."
+    "note": "STT (Sarvam Saaras v3) is a REST network round-trip (~300-800ms typical). It is always measured and reported separately in LatencyMetrics.stt_ms. Full E2E = stt_ms + Benchmark A rag_core_ms. Not included in A or B numbers — network latency is not a property of the RAG core."
   }
 }

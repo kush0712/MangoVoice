@@ -193,13 +193,15 @@ async def run_benchmark(
     # ── Stats helper ──────────────────────────────────────────────────────────
     def stats(arr):
         if not arr:
-            return {"p50": 0.0, "p70": 0.0, "p100": 0.0, "mean": 0.0}
+            return {"p50": 0.0, "p70": 0.0, "p90": 0.0, "p99": 0.0, "p100": 0.0, "mean": 0.0}
         a = np.array(arr)
         return {
-            "p50": float(np.percentile(a, 50)),
-            "p70": float(np.percentile(a, 70)),
-            "p100": float(np.percentile(a, 100)),
-            "mean": float(np.mean(a)),
+            "p50": round(float(np.percentile(a, 50)), 2),
+            "p70": round(float(np.percentile(a, 70)), 2),
+            "p90": round(float(np.percentile(a, 90)), 2),
+            "p99": round(float(np.percentile(a, 99)), 2),
+            "p100": round(float(np.percentile(a, 100)), 2),
+            "mean": round(float(np.mean(a)), 2),
         }
 
     # ── Build report ──────────────────────────────────────────────────────────
@@ -240,21 +242,21 @@ async def run_benchmark(
     }
 
     # ── Print formatted report ────────────────────────────────────────────────
-    print("\n\n" + "=" * 70)
+    print("\n\n" + "=" * 74)
     print("MANGOVOICE LATENCY BENCHMARK")
-    print("=" * 70)
+    print("=" * 74)
 
     a = report["benchmark_a_fast_path"]
     print(f"\n[A] FAST-PATH RAG (contractual <200ms SLA)  N={a['n_queries']}")
     print(f"    {a['description']}")
     print()
-    print(f"  {'Stage':<28} {'P50':>8} {'P70':>8} {'P100':>8} {'Mean':>8}")
-    print("  " + "-" * 58)
+    print(f"  {'Stage':<24} {'P50':>7} {'P70':>7} {'P90':>7} {'P99':>7} {'P100':>7} {'Mean':>7}")
+    print("  " + "-" * 68)
     for stage, s in a["stages"].items():
-        print(f"  {stage:<28} {s['p50']:>7.1f}  {s['p70']:>7.1f}  {s['p100']:>7.1f}  {s['mean']:>7.1f}")
-    print("  " + "-" * 58)
+        print(f"  {stage:<24} {s['p50']:>7.1f} {s['p70']:>7.1f} {s['p90']:>7.1f} {s['p99']:>7.1f} {s['p100']:>7.1f} {s['mean']:>7.1f}")
+    print("  " + "-" * 68)
     core = a["rag_core_total"]
-    print(f"  {'RAG CORE TOTAL':<28} {core['p50']:>7.1f}  {core['p70']:>7.1f}  {core['p100']:>7.1f}  {core['mean']:>7.1f}")
+    print(f"  {'RAG CORE TOTAL':<24} {core['p50']:>7.1f} {core['p70']:>7.1f} {core['p90']:>7.1f} {core['p99']:>7.1f} {core['p100']:>7.1f} {core['mean']:>7.1f}")
     print(f"  Answer rate: {a['answer_rate']}")
 
     if run_b and rows_b:
@@ -262,13 +264,13 @@ async def run_benchmark(
         print(f"\n[B] LLM-ENHANCED (honest Groq measurement)  N={b['n_queries']}")
         print(f"    {b['description']}")
         print()
-        print(f"  {'Stage':<28} {'P50':>8} {'P70':>8} {'P100':>8} {'Mean':>8}")
-        print("  " + "-" * 58)
+        print(f"  {'Stage':<24} {'P50':>7} {'P70':>7} {'P90':>7} {'P99':>7} {'P100':>7} {'Mean':>7}")
+        print("  " + "-" * 68)
         for stage, s in b["stages"].items():
-            print(f"  {stage:<28} {s['p50']:>7.1f}  {s['p70']:>7.1f}  {s['p100']:>7.1f}  {s['mean']:>7.1f}")
-        print("  " + "-" * 58)
+            print(f"  {stage:<24} {s['p50']:>7.1f} {s['p70']:>7.1f} {s['p90']:>7.1f} {s['p99']:>7.1f} {s['p100']:>7.1f} {s['mean']:>7.1f}")
+        print("  " + "-" * 68)
         core_b = b["rag_core_total"]
-        print(f"  {'RAG CORE TOTAL':<28} {core_b['p50']:>7.1f}  {core_b['p70']:>7.1f}  {core_b['p100']:>7.1f}  {core_b['mean']:>7.1f}")
+        print(f"  {'RAG CORE TOTAL':<24} {core_b['p50']:>7.1f} {core_b['p70']:>7.1f} {core_b['p90']:>7.1f} {core_b['p99']:>7.1f} {core_b['p100']:>7.1f} {core_b['mean']:>7.1f}")
         print(f"  Answer rate: {b['answer_rate']}")
 
     print(f"\n[C] VOICE E2E: {report['benchmark_c_voice_e2e']['note']}")

@@ -4,7 +4,9 @@ Vercel expects the ASGI app exported as `app` from api/index.py.
 """
 import sys
 import os
+import json
 import time
+from pathlib import Path
 
 # Ensure backend package is on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -254,7 +256,7 @@ _BENCHMARK_QUERIES = [
 
 @app.get("/api/benchmark")
 async def live_benchmark(
-    n: int = Query(default=20, ge=5, le=50, description="Number of queries to run (5–50)"),
+    n: int = Query(default=20, ge=5, le=100, description="Number of queries to run (5–100)"),
 ) -> dict:
     """
     Live benchmark — honest per-query latency measurement.
@@ -281,7 +283,33 @@ async def live_benchmark(
     store = get_store()
     embedder = get_embedder()
 
-    queries = _BENCHMARK_QUERIES[:n]
+    queries = list(_BENCHMARK_QUERIES)
+    if n > len(queries):
+        candidates: list[str] = []
+        for path_cand in [
+            Path("data/val_passages.jsonl"),
+            Path(__file__).resolve().parent.parent / "data" / "val_passages.jsonl",
+            Path("/app/data/val_passages.jsonl"),
+        ]:
+            if path_cand.exists():
+                try:
+                    with open(path_cand, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if len(queries) + len(candidates) >= n:
+                                break
+                            line_str = line.strip()
+                            if not line_str:
+                                continue
+                            row = json.loads(line_str)
+                            q = row.get("query", "")
+                            if q and len(q) > 5 and q not in queries and q not in candidates:
+                                candidates.append(q)
+                except Exception as e:
+                    logger.warning("Failed to load additional benchmark queries: %s", e)
+                break
+        queries.extend(candidates)
+
+    queries = queries[:n]
     embed_ms_list, retr_ms_list, extr_ms_list, ground_ms_list, core_ms_list = [], [], [], [], []
     statuses = []
 
@@ -346,11 +374,20 @@ async def live_benchmark(
 
     def _stats(arr):
         if not arr:
-            return {"p50_ms": 0.0, "p70_ms": 0.0, "p100_ms": 0.0, "mean_ms": 0.0}
+            return {
+                "p50_ms": 0.0,
+                "p70_ms": 0.0,
+                "p90_ms": 0.0,
+                "p99_ms": 0.0,
+                "p100_ms": 0.0,
+                "mean_ms": 0.0,
+            }
         a = np.array(arr)
         return {
             "p50_ms": round(float(np.percentile(a, 50)), 2),
             "p70_ms": round(float(np.percentile(a, 70)), 2),
+            "p90_ms": round(float(np.percentile(a, 90)), 2),
+            "p99_ms": round(float(np.percentile(a, 99)), 2),
             "p100_ms": round(float(np.percentile(a, 100)), 2),
             "mean_ms": round(float(np.mean(a)), 2),
         }
