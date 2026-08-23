@@ -7,7 +7,7 @@ import { GoaFloralDivider, GoaBeachScenery, GoaTextileRibbon } from "./GoaIllust
 const FAQS_DATA = [
   {
     q: "How does MangoVoice achieve sub-200ms RAG core latency?",
-    a: "We avoid multi-second Python framework overhead by running a zero-dependency async pipeline. Query embeddings are generated locally via FastEmbed ONNX (P50 41.9ms), hybrid retrieval runs in-process via zero-copy LanceDB + flat inverted BM25 (P50 11.0ms), and extractive fallback answers in 0.3ms with instant grounding verifier (0.16ms), delivering a consistent 53.4ms P50 RAG core latency (P100 < 65ms).",
+    a: "We avoid multi-second Python framework overhead by running a zero-dependency async pipeline. Query embeddings are generated locally via FastEmbed ONNX (P50 38.99ms), hybrid retrieval runs in-process via zero-copy LanceDB + flat inverted BM25 (P50 9.39ms), and extractive fallback answers in 0.25ms with instant grounding verifier (0.13ms), delivering a consistent 48.97ms P50 RAG core latency (P99 62.59ms, full N=500 sweep P50 53.58ms).",
   },
   {
     q: "How does MangoVoice handle Hindi, English, and Hinglish codemix?",

@@ -16,7 +16,7 @@ MangoVoice is a voice-first, grounded RAG system over [`ai4bharat/MSMARCO-XI`](h
 2. 📝 Sarvam Saaras v3 transcribes your speech (auto language detection: `unknown` mode enables codemix)
 3. 🔎 LanceDB hybrid retrieval (dense ANN + BM25 + RRF) finds evidence — both run sequentially against in-memory numpy indexes (~11ms total, zero disk IO)
 4. 🛡 4-layer guardrail system checks safety and confidence at every stage
-5. ⚡ Extractive fast-path answer — best-matching sentence from top source, grounded and returned in **53.46ms P50 RAG core** (P100 < 65ms, no LLM on the critical path)
+5. ⚡ Extractive fast-path answer — best-matching sentence from top source, grounded and returned in **48.97ms P50 RAG core live / 53.58ms N=500 sweep** (P99 < 63ms, no LLM on the critical path)
 6. 🧠 Groq (openai/gpt-oss-20b) fires as a background task (fire-and-forget, result discarded) — never blocks the response
 7. ⚡ Lightweight grounding verifier ensures the extractive answer cites real evidence (citation existence check + substring fingerprint, ~0ms)
 8. 🔊 Sarvam Bulbul v2 TTS reads the answer aloud in the detected language (Hindi/English)
