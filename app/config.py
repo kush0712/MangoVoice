@@ -9,7 +9,7 @@ import os
 # Evaluation harness backend identifiers
 GENERATION_BACKEND = "groq"
 GENERATION_BACKEND_NAME = "Groq Hybrid (allam-2-7b / Extractive Fallback)"
-GENERATION_MODEL = os.getenv("GROQ_MODEL", "allam-2-7b")
+GENERATION_MODEL = os.getenv("GROQ_MODEL", "groq/compound-mini")
 LOCAL_GENERATION_MODEL = "extractive-fast-qa"
 
 # Evaluation budgets
@@ -22,4 +22,4 @@ EMBEDDING_MODEL = os.getenv(
     "EMBEDDING_MODEL",
     "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
-GROQ_MODEL = os.getenv("GROQ_MODEL", "allam-2-7b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound-mini")

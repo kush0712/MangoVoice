@@ -207,10 +207,9 @@ INSTRUCTIONS:
 3. NEVER use outside knowledge or extrapolate."""
 
     models_to_try = [
-        os.getenv("GROQ_MODEL", "allam-2-7b"),
-        "allam-2-7b",
+        os.getenv("GROQ_MODEL", "groq/compound-mini"),
         "groq/compound-mini",
-        "openai/gpt-oss-20b",
+        "allam-2-7b",
     ]
     seen_models = set()
     models_to_try = [m for m in models_to_try if not (m in seen_models or seen_models.add(m))]
