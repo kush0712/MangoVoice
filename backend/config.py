@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
 
     # ── Model config ─────────────────────────────────────────────────────────
-    groq_model: str = "openai/gpt-oss-20b"          # fast, replaces deprecated llama-3.1-8b-instant
-    groq_safety_model: str = "openai/gpt-oss-20b"   # fast safety eval
+    groq_model: str = "allam-2-7b"                  # fast (sub-200ms), high accuracy grounded generation
+    groq_safety_model: str = "meta-llama/llama-prompt-guard-2-22m"   # fast safety eval
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     sarvam_model: str = "saaras:v3"
     sarvam_mode: str = "codemix"

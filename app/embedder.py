@@ -13,14 +13,17 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+from functools import lru_cache
 from backend.retrieval.embeddings import get_embedder
 
-LATENCY_BUDGET_MS = 200
+LATENCY_BUDGET_MS = 50
 
 
 def get_model():
     """Warms up and initializes the embedding model singleton."""
-    return get_embedder()
+    embedder = get_embedder()
+    embedder.embed_one("warmup text")
+    return embedder
 
 
 def embed(texts: list[str]) -> np.ndarray:
@@ -29,7 +32,13 @@ def embed(texts: list[str]) -> np.ndarray:
     return embedder.embed(texts)
 
 
+@lru_cache(maxsize=512)
+def _cached_embed_one(text: str) -> tuple[float, ...]:
+    embedder = get_embedder()
+    return tuple(embedder.embed_one(text).tolist())
+
+
 def embed_one(text: str) -> np.ndarray:
     """Embed a single string into a 1D float32 numpy array of shape (dim,)."""
-    embedder = get_embedder()
-    return embedder.embed_one(text)
+    return np.array(_cached_embed_one(text), dtype=np.float32)
+

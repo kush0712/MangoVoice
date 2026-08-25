@@ -36,24 +36,18 @@ class MultilingualEmbedder:
             # 4 intra-op threads = same Railway billing cost as 2 threads.
             # Railway charges on total vCPU-seconds: 4 threads × 70ms =
             # 2 threads × 140ms = identical cost. Faster is better — same bill.
-            n_cpu = os.cpu_count() or 1
-            n_threads = min(n_cpu, 4)
-            providers = [(
-                "CPUExecutionProvider",
-                {
-                    "intra_op_num_threads": n_threads,
-                    "inter_op_num_threads": 1,
-                },
-            )]
+            n_threads = int(os.environ.get("FASTEMBED_THREADS", "2"))
             self._model = TextEmbedding(
                 model_name=settings.embedding_model,
                 threads=n_threads,
                 cache_dir=settings.fastembed_cache_dir,
             )
+            # Warm up ONNX session immediately so first query has zero initialization penalty
+            list(self._model.embed(["warmup sentence"]))
             self._ready = True
             logger.info(
-                "Embedding model loaded: %s (ONNX threads: intra=%d inter=%d)",
-                settings.embedding_model, n_threads, max(1, n_threads // 2),
+                "Embedding model loaded & warmed up: %s (threads: %d)",
+                settings.embedding_model, n_threads,
             )
         except Exception as exc:
             logger.error("Failed to load embedding model: %s", exc)
