@@ -133,11 +133,11 @@ def _check_query_intent(query: str) -> dict[str, bool]:
     """Identify query intent constraints to validate candidate answer types."""
     q_low = query.lower()
     return {
-        "temporal": bool(re.search(r"\b(when|year|date|released|born|died|established|founded|kab)\b", q_low)),
-        "location": bool(re.search(r"\b(where|address|location|headquarters|hq|located|kahan)\b", q_low)),
-        "numerical": bool(re.search(r"\b(how many|how much|cost|price|count|number of|percentage|kitna|kitni)\b", q_low)),
-        "difference": bool(re.search(r"\b(difference|differs|distinguish|versus|vs|comparison|antar)\b", q_low)),
-        "person": bool(re.search(r"\b(who|person|creator|inventor|founder|author|president|kaun)\b", q_low)),
+        "temporal": bool(re.search(r"\b(when was|when did|when is|what year|what date|released in|born in|died in|founded in|kab)\b", q_low)),
+        "location": bool(re.search(r"\b(where is|where was|address of|corporate address|location of|headquarters of|hq of|located in|kahan)\b", q_low)),
+        "numerical": bool(re.search(r"\b(how many|how much|cost of|price of|count of|number of|percentage of|kitna|kitni)\b", q_low)),
+        "difference": bool(re.search(r"\b(difference between|differs from|distinguish between|versus|vs|comparison between|antar)\b", q_low)),
+        "origin": bool(re.search(r"\b(originate|origin of|derived from|where did .+ come from|etymology)\b", q_low)),
     }
 
 
@@ -156,8 +156,8 @@ def _satisfies_intent(sent: str, intent: dict[str, bool]) -> bool:
     if intent["difference"]:
         if not re.search(DIFFERENCE_PAT, s_low):
             return False
-    if intent["person"]:
-        if not re.search(PERSON_PAT, s_low) and not re.search(r"\b[A-Z][a-z]+ [A-Z][a-z]+\b", sent):
+    if intent.get("origin"):
+        if not re.search(r"\b(origin|derived from|coined by|first used|history of|etymology|phrase comes from|term was created)\b", s_low):
             return False
     return True
 
@@ -301,8 +301,8 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
 
         raw_sents = [s.strip() for s in re.split(r"(?<=[.!?।])\s+", text) if len(s.strip()) > 15]
         for idx, sent in enumerate(raw_sents):
-            # Rule 1: Exclude interrogatives / questions
-            if sent.endswith("?") or sent.endswith('?"') or sent.endswith("?'") or sent.endswith("?:"):
+            # Rule 1: Exclude interrogatives / questions / colon-ending list headers
+            if sent.endswith("?") or sent.endswith('?"') or sent.endswith("?'") or sent.endswith("?:") or sent.endswith(":"):
                 continue
             if re.match(r"^(what|why|how|when|where|who|which|kya|kyun|kaise|kab)\b", sent.lower()) and len(sent) < 75:
                 continue
