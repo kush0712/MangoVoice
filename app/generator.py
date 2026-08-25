@@ -300,10 +300,10 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
         if not raw_text or len(raw_text) < 15:
             continue
 
-        # Clean leading question / header line if present
-        lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
-        if len(lines) > 1 and (lines[0].endswith("?") or re.match(r"^(what|why|how|when|where|who)\b", lines[0].lower())):
-            text = " ".join(lines[1:]).strip()
+        # Clean leading question / header sentence if present
+        sents = [s.strip() for s in re.split(r"(?<=[.!?।])\s+", raw_text.strip()) if len(s.strip()) > 0]
+        if len(sents) > 1 and sents[0].endswith("?"):
+            text = " ".join(sents[1:]).strip()
         else:
             text = raw_text.strip()
 
