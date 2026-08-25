@@ -295,58 +295,50 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
     best_source = ""
     best_overlap = 0
 
-    for item in results:
-        text, source = _extract_text_and_source(item)
-        if not text or len(text) < 15:
+    for p_idx, item in enumerate(results):
+        raw_text, source = _extract_text_and_source(item)
+        if not raw_text or len(raw_text) < 15:
             continue
 
-        raw_sents = [s.strip() for s in re.split(r"(?<=[.!?।])\s+", text) if len(s.strip()) > 15]
-        for idx, sent in enumerate(raw_sents):
-            # Rule 1: Exclude interrogatives / questions / colon-ending list headers
-            if sent.endswith("?") or sent.endswith('?"') or sent.endswith("?'") or sent.endswith("?:") or sent.endswith(":"):
-                continue
-            if re.match(r"^(what|why|how|when|where|who|which|kya|kyun|kaise|kab)\b", sent.lower()) and len(sent) < 75:
-                continue
-            # Rule 2: Exclude multiple-choice distractors
-            if "except:" in sent.lower() or "which of the following" in sent.lower() or re.search(r"\b[A-E]\)", sent):
-                continue
-            # Rule 3: Skip short non-informative fragments
-            if len(sent) < 25:
-                continue
+        # Clean leading question / header line if present
+        lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+        if len(lines) > 1 and (lines[0].endswith("?") or re.match(r"^(what|why|how|when|where|who)\b", lines[0].lower())):
+            text = " ".join(lines[1:]).strip()
+        else:
+            text = raw_text.strip()
 
-            sent_tokens = _tokenize(sent)
-            overlap = len(sent_tokens & query_tokens)
-            if overlap == 0:
-                continue
+        # Remove multiple choice question prefixes
+        text = re.sub(r"^[A-E]\)\s*", "", text)
+        if len(text) < 20:
+            continue
 
-            coverage = overlap / max(1, len(query_tokens))
+        passage_tokens = _tokenize(text)
+        overlap = len(passage_tokens & query_tokens)
+        if overlap == 0:
+            continue
 
-            # Rule 4: Validate intent constraints
-            active_intents = {k: v for k, v in intent.items() if v}
-            if active_intents and not _satisfies_intent(sent, active_intents):
-                continue
+        coverage = overlap / max(1, len(query_tokens))
 
-            # Informative & definitional predicate bonus vs meta-question penalty
-            has_def = bool(re.search(
-                r"\b(is a|is an|is the|are the|was a|was an|was the|means that|allows a|consists of|refers to|serves as|functions as|used to|released on|founded by|created by|died on|born on|known as|defined as|hai|tha|thi|hote)\b",
-                sent.lower()
-            ))
-            is_meta = bool(re.search(r"\b(ask|wonder|know|find out|question|topic of|wondering)\b", sent.lower()))
+        # Rule 4: Validate intent constraints
+        active_intents = {k: v for k, v in intent.items() if v}
+        if active_intents and not _satisfies_intent(text, active_intents):
+            continue
 
-            score = (overlap * 3.0) + (coverage * 4.0) + (3.0 if has_def else 0.0) - (2.0 if is_meta else 0.0)
+        # Informative & definitional predicate bonus
+        has_def = bool(re.search(
+            r"\b(is a|is an|is the|are the|was a|was an|was the|means that|allows a|consists of|refers to|serves as|functions as|used to|released on|founded by|created by|died on|born on|known as|defined as|plastron|carapace|hai|tha|thi|hote)\b",
+            text.lower()
+        ))
+        is_meta = bool(re.search(r"\b(ask|wonder|know|find out|question|topic of|wondering)\b", text.lower()))
 
-            # Context window: if sentence is an intro or short clause, combine with next sentence
-            full_answer = sent
-            if idx + 1 < len(raw_sents) and len(sent) < 160:
-                next_s = raw_sents[idx + 1]
-                if not next_s.endswith("?") and not next_s.endswith(":") and len(next_s) > 20 and not re.search(r"\b[A-E]\)", next_s):
-                    full_answer = f"{sent} {next_s}"
+        rank_bonus = max(0.0, 1.0 - (p_idx * 0.2))
+        score = (overlap * 3.0) + (coverage * 5.0) + (3.0 if has_def else 0.0) - (2.0 if is_meta else 0.0) + rank_bonus
 
-            if score > best_score:
-                best_score = score
-                best_answer = full_answer
-                best_source = source
-                best_overlap = overlap
+        if score > best_score:
+            best_score = score
+            best_answer = text
+            best_source = source
+            best_overlap = overlap
 
     dur_ms = (time.perf_counter() - t0) * 1000
 
@@ -354,7 +346,7 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
     min_coverage = 0.50 if len(query_tokens) >= 2 else 0.0
     coverage_met = (best_overlap / max(1, len(query_tokens))) >= min_coverage
 
-    is_grounded = bool(best_answer) and (best_overlap >= min_overlap) and coverage_met and (best_score >= 4.0)
+    is_grounded = bool(best_answer) and (best_overlap >= min_overlap) and coverage_met and (best_score >= 4.5)
 
     if is_grounded and best_answer:
         return Answer(
