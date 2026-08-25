@@ -49,6 +49,7 @@ _STOP_WORDS: frozenset[str] = frozenset({
     "such", "also", "only", "just", "more", "most", "very", "each", "for",
     "and", "but", "not", "you", "they", "them", "him", "her", "its",
     "called", "known", "named", "used", "use", "using", "means", "meaning",
+    "definition", "define", "defined",
     "kya", "hai", "hain", "mein", "kaise", "kaun", "kab", "kitna", "kitni",
     "aur", "yeh", "woh", "toh", "bhi", "tak", "par", "tha", "thi",
     "hota", "hoti", "hote", "kaafi", "bahut", "iska", "iski", "iske",
@@ -328,14 +329,27 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
             continue
 
         # Informative & definitional predicate bonus
+        t_low = text.lower()
         has_def = bool(re.search(
-            r"\b(is a|is an|is the|are the|was a|was an|was the|means that|allows a|consists of|refers to|serves as|functions as|used to|released on|founded by|created by|died on|born on|known as|defined as|plastron|carapace|hai|tha|thi|hote)\b",
-            text.lower()
+            r"\b(means\b|is the ability|is a\b|is an\b|is the\b|are the\b|was the\b|founder of|refers to|consists of|defined as|allows a|serves as|functions as|plastron|carapace|hai|tha|thi|hote)\b",
+            t_low
         ))
-        is_meta = bool(re.search(r"\b(ask|wonder|know|find out|question|topic of|wondering)\b", text.lower()))
+        has_duration = bool(re.search(
+            r"\b(\d+\s*-\s*\d+|\d+\s+days|\d+\s+hours|\d+\s+weeks|\d+\s+months|\d+\s+years)\b",
+            t_low
+        ))
+        is_meta = bool(re.search(
+            r"\b(problems can arise|definition of .+ from|example of|some people ask|wondering)\b",
+            t_low
+        ))
 
-        rank_bonus = max(0.0, 1.0 - (p_idx * 0.2))
-        score = (overlap * 3.0) + (coverage * 5.0) + (3.0 if has_def else 0.0) - (2.0 if is_meta else 0.0) + rank_bonus
+        score = (overlap * 3.0) + (coverage * 5.0)
+        if has_def:
+            score += 4.0
+        if has_duration and ("how long" in clean_query.lower() or "when" in clean_query.lower()):
+            score += 5.0
+        if is_meta:
+            score -= 4.0
 
         if score > best_score:
             best_score = score
