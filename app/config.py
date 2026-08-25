@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import os
 
-# Evaluation harness backend identifier
+# Evaluation harness backend identifiers
 GENERATION_BACKEND = "groq"
 GENERATION_BACKEND_NAME = "Groq Hybrid (allam-2-7b / Extractive Fallback)"
+GENERATION_MODEL = os.getenv("GROQ_MODEL", "allam-2-7b")
+LOCAL_GENERATION_MODEL = "extractive-fast-qa"
 
 # Evaluation budgets
 LATENCY_BUDGET_MS = 50

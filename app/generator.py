@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import sys
 import re
+import time
 from typing import Any, List, Optional
 import numpy as np
 
@@ -64,17 +65,21 @@ class Answer:
         grounded: bool,
         confidence: float = 1.0,
         cited_source: Optional[str] = None,
+        generation_ms: float = 0.0,
+        model: str = "extractive",
     ):
         self.text = text
         self.grounded = bool(grounded)
         self.confidence = float(confidence)
         self.cited_source = cited_source
+        self.generation_ms = float(generation_ms)
+        self.model = str(model)
 
     def __str__(self) -> str:
         return self.text
 
     def __repr__(self) -> str:
-        return f"Answer(text={self.text!r}, grounded={self.grounded}, confidence={self.confidence:.2f})"
+        return f"Answer(text={self.text!r}, grounded={self.grounded}, generation_ms={self.generation_ms:.1f}ms, model={self.model!r})"
 
 
 def _tokenize(text: str) -> set[str]:
@@ -149,7 +154,7 @@ def _generate_with_groq(query: str, results: list) -> Optional[Answer]:
                 top_source = src
 
     if not passages:
-        return Answer(text=REFUSAL_TEXT, grounded=False, confidence=0.0)
+        return Answer(text=REFUSAL_TEXT, grounded=False, confidence=0.0, model="groq/empty")
 
     evidence_text = "\n\n".join(passages)
     prompt = f"""EVIDENCE:
@@ -170,7 +175,6 @@ INSTRUCTIONS:
         "groq/compound-mini",
         "openai/gpt-oss-20b",
     ]
-    # Deduplicate while preserving order
     seen_models = set()
     models_to_try = [m for m in models_to_try if not (m in seen_models or seen_models.add(m))]
 
@@ -178,6 +182,7 @@ INSTRUCTIONS:
 
     for model_name in models_to_try:
         try:
+            t0 = time.perf_counter()
             resp = client.chat.completions.create(
                 model=model_name,
                 messages=[
@@ -187,13 +192,13 @@ INSTRUCTIONS:
                 max_tokens=256,
                 temperature=0.0,
             )
+            dur_ms = (time.perf_counter() - t0) * 1000
             raw_content = resp.choices[0].message.content or ""
             content = _clean_response_text(raw_content)
 
             if not content:
                 continue
 
-            # Check for refusal
             lowered = content.lower()
             is_refusal = (
                 REFUSAL_TEXT.lower() in lowered
@@ -205,13 +210,25 @@ INSTRUCTIONS:
             )
 
             if is_refusal:
-                return Answer(text=REFUSAL_TEXT, grounded=False, confidence=0.0, cited_source=top_source)
+                return Answer(
+                    text=REFUSAL_TEXT,
+                    grounded=False,
+                    confidence=0.0,
+                    cited_source=top_source,
+                    generation_ms=dur_ms,
+                    model=f"groq/{model_name}",
+                )
 
-            # Valid grounded answer generated
-            return Answer(text=content, grounded=True, confidence=0.95, cited_source=top_source)
+            return Answer(
+                text=content,
+                grounded=True,
+                confidence=0.95,
+                cited_source=top_source,
+                generation_ms=dur_ms,
+                model=f"groq/{model_name}",
+            )
 
         except Exception:
-            # Try next model or fallback to offline QA on rate-limit / timeout
             continue
 
     return None
@@ -226,8 +243,15 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
     2. Scores candidate sentences on predicate density, cosine similarity, and keyword coverage.
     3. Strictly enforces content coverage to eliminate false confidence on unanswerable queries.
     """
+    t0 = time.perf_counter()
     if not results or not query or not query.strip():
-        return Answer(text=REFUSAL_TEXT, grounded=False, confidence=0.0)
+        return Answer(
+            text=REFUSAL_TEXT,
+            grounded=False,
+            confidence=0.0,
+            generation_ms=(time.perf_counter() - t0) * 1000,
+            model="extractive-fast-qa",
+        )
 
     clean_query = query.strip()
     query_tokens = _meaningful_query_tokens(clean_query)
@@ -244,7 +268,6 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
         if not text or len(text) < 15:
             continue
 
-        # Split passage into distinct sentences (Latin + Devanagari danda)
         sentences = [s.strip() for s in re.split(r"(?<=[.!?।])\s+", text) if len(s.strip()) > 12]
         if not sentences:
             sentences = [text[:350].strip()]
@@ -259,14 +282,12 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
             sent_tokens = _tokenize(sent)
             overlap = len(sent_tokens & query_tokens)
             
-            # Fast filter: skip sentences with zero keyword overlap if query has content tokens
             if overlap == 0 and len(query_tokens) > 1 and len(sentences) > 1:
                 continue
 
             sent_vec = embedder.embed_one(sent)
             sim = _cosine_sim(query_vec, sent_vec)
 
-            # Boost sentences with informative predicates & definitions
             has_predicate = bool(re.search(
                 r"\b(is|are|was|were|allows|means|refers|released|created|born|located|causes|because|hai|tha|thi|hote)\b",
                 sent.lower()
@@ -282,8 +303,8 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
                 best_source = source
                 best_overlap = overlap
 
-    # Strict Grounding Verification:
-    # Requires minimum keyword overlap to prevent 1-word distractor matches on unanswerables
+    dur_ms = (time.perf_counter() - t0) * 1000
+
     min_overlap = 2 if len(query_tokens) >= 2 else 1
     is_grounded = (
         bool(best_sentence)
@@ -297,12 +318,16 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
             grounded=True,
             confidence=min(1.0, float(best_score)),
             cited_source=best_source,
+            generation_ms=dur_ms,
+            model="extractive-fast-qa",
         )
     else:
         return Answer(
             text=REFUSAL_TEXT,
             grounded=False,
             confidence=0.0,
+            generation_ms=dur_ms,
+            model="extractive-fast-qa",
         )
 
 
@@ -314,7 +339,7 @@ def generate_answer(query: str, results: list) -> Answer:
     Meets rag-local-eval-loop contract:
     - query: str
     - results: list of candidate objects with .text and .source attributes
-    - returns: Answer instance with .text: str and .grounded: bool
+    - returns: Answer instance with .text: str, .grounded: bool, .generation_ms: float, .model: str
     """
     # 1. Attempt LLM generation if Groq is available
     llm_answer = _generate_with_groq(query, results)
