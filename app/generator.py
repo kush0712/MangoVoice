@@ -187,6 +187,7 @@ def _generate_with_groq(query: str, results: list) -> Optional[Answer]:
     if not passages:
         return Answer(text=REFUSAL_TEXT, grounded=False, confidence=0.0, model="groq/empty")
 
+    evidence_text = "\n\n".join(passages)
     system_msg = (
         "You are a strict, grounded reading comprehension engine. "
         "You must answer questions using ONLY the verbatim facts in the EVIDENCE below. "
