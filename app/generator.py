@@ -326,16 +326,18 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
             if active_intents and not _satisfies_intent(sent, active_intents):
                 continue
 
-            # Informative predicate bonus
-            has_predicate = bool(re.search(
-                r"\b(is|are|was|were|allows|means|refers|released|created|born|located|causes|because|hai|tha|thi|hote)\b",
+            # Informative & definitional predicate bonus vs meta-question penalty
+            has_def = bool(re.search(
+                r"\b(is a|is an|is the|are the|was a|was an|was the|means that|allows a|consists of|refers to|serves as|functions as|used to|released on|founded by|created by|died on|born on|known as|defined as|hai|tha|thi|hote)\b",
                 sent.lower()
             ))
-            score = (overlap * 2.5) + (coverage * 3.0) + (1.5 if has_predicate else 0.0)
+            is_meta = bool(re.search(r"\b(ask|wonder|know|find out|question|topic of|wondering)\b", sent.lower()))
+
+            score = (overlap * 3.0) + (coverage * 4.0) + (3.0 if has_def else 0.0) - (2.0 if is_meta else 0.0)
 
             # Context window: if sentence is an intro or short clause, combine with next sentence
             full_answer = sent
-            if idx + 1 < len(raw_sents) and len(sent) < 150:
+            if idx + 1 < len(raw_sents) and len(sent) < 160:
                 next_s = raw_sents[idx + 1]
                 if not next_s.endswith("?") and not next_s.endswith(":") and len(next_s) > 20 and not re.search(r"\b[A-E]\)", next_s):
                     full_answer = f"{sent} {next_s}"
@@ -349,7 +351,10 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
     dur_ms = (time.perf_counter() - t0) * 1000
 
     min_overlap = 2 if len(query_tokens) >= 2 else 1
-    is_grounded = bool(best_answer) and (best_overlap >= min_overlap) and (best_score >= 3.5)
+    min_coverage = 0.50 if len(query_tokens) >= 2 else 0.0
+    coverage_met = (best_overlap / max(1, len(query_tokens))) >= min_coverage
+
+    is_grounded = bool(best_answer) and (best_overlap >= min_overlap) and coverage_met and (best_score >= 4.0)
 
     if is_grounded and best_answer:
         return Answer(
