@@ -187,18 +187,23 @@ def _generate_with_groq(query: str, results: list) -> Optional[Answer]:
     if not passages:
         return Answer(text=REFUSAL_TEXT, grounded=False, confidence=0.0, model="groq/empty")
 
-    evidence_text = "\n\n".join(passages)
-    prompt = f"""EVIDENCE:
+    system_msg = (
+        "You are a strict, grounded reading comprehension engine. "
+        "You must answer questions using ONLY the verbatim facts in the EVIDENCE below. "
+        "You are strictly FORBIDDEN from using outside knowledge, general facts, or assumptions. "
+        f"If the evidence does not contain the exact direct answer, you MUST reply with EXACTLY: \"{REFUSAL_TEXT}\""
+    )
+
+    user_msg = f"""EVIDENCE:
 {evidence_text}
 
 QUESTION: {query}
 
 INSTRUCTIONS:
-1. Answer the question directly and concisely (1-2 sentences) in the language of the question using ONLY facts stated in the evidence.
-2. Do NOT repeat or rephrase the question as your answer.
-3. If NONE of the evidence passages directly answer the question asked, you MUST reply with EXACTLY:
+1. Provide a concise 1-2 sentence direct factual answer using ONLY facts directly stated in the evidence.
+2. If the exact answer is missing or not directly supported by the evidence above, you MUST output EXACTLY:
 "{REFUSAL_TEXT}"
-4. Do not speculate or use outside knowledge."""
+3. NEVER use outside knowledge or extrapolate."""
 
     models_to_try = [
         os.getenv("GROQ_MODEL", "allam-2-7b"),
@@ -209,7 +214,7 @@ INSTRUCTIONS:
     seen_models = set()
     models_to_try = [m for m in models_to_try if not (m in seen_models or seen_models.add(m))]
 
-    client = Groq(api_key=groq_api_key, timeout=8.0)
+    client = Groq(api_key=groq_api_key, timeout=4.0)
 
     for model_name in models_to_try:
         try:
@@ -217,10 +222,10 @@ INSTRUCTIONS:
             resp = client.chat.completions.create(
                 model=model_name,
                 messages=[
-                    {"role": "system", "content": "You are MangoVoice, a strict, grounded RAG answering assistant."},
-                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg},
                 ],
-                max_tokens=256,
+                max_tokens=200,
                 temperature=0.0,
             )
             dur_ms = (time.perf_counter() - t0) * 1000
@@ -321,7 +326,13 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
             coverage = overlap / max(1, len(query_tokens))
 
             # Rule 4: Validate intent constraints
-            has_mandatory_intent = intent["temporal"] or intent["location"] or intent["difference"] or intent["numerical"] or intent["person"]
+            has_mandatory_intent = (
+                intent.get("temporal", False)
+                or intent.get("location", False)
+                or intent.get("difference", False)
+                or intent.get("numerical", False)
+                or intent.get("origin", False)
+            )
             intent_ok = _satisfies_intent(sent, intent)
             if has_mandatory_intent and not intent_ok:
                 continue
