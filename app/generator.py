@@ -48,6 +48,7 @@ _STOP_WORDS: frozenset[str] = frozenset({
     "his", "her", "our", "your", "their", "there", "here", "then", "than",
     "such", "also", "only", "just", "more", "most", "very", "each", "for",
     "and", "but", "not", "you", "they", "them", "him", "her", "its",
+    "called", "known", "named", "used", "use", "using", "means", "meaning",
     "kya", "hai", "hain", "mein", "kaise", "kaun", "kab", "kitna", "kitni",
     "aur", "yeh", "woh", "toh", "bhi", "tak", "par", "tha", "thi",
     "hota", "hoti", "hote", "kaafi", "bahut", "iska", "iski", "iske",
@@ -133,32 +134,27 @@ def _check_query_intent(query: str) -> dict[str, bool]:
     """Identify query intent constraints to validate candidate answer types."""
     q_low = query.lower()
     return {
-        "temporal": bool(re.search(r"\b(when was|when did|when is|what year|what date|released in|born in|died in|founded in|kab)\b", q_low)),
-        "location": bool(re.search(r"\b(where is|where was|address of|corporate address|location of|headquarters of|hq of|located in|kahan)\b", q_low)),
+        "temporal": bool(re.search(r"\b(when|year|date|released|born|died|established|founded|kab)\b", q_low)),
+        "location": bool(re.search(r"\b(where|address|location|headquarters|hq|located|kahan)\b", q_low)),
         "numerical": bool(re.search(r"\b(how many|how much|cost of|price of|count of|number of|percentage of|kitna|kitni)\b", q_low)),
-        "difference": bool(re.search(r"\b(difference between|differs from|distinguish between|versus|vs|comparison between|antar)\b", q_low)),
-        "origin": bool(re.search(r"\b(originate|origin of|derived from|where did .+ come from|etymology)\b", q_low)),
+        "difference": bool(re.search(r"\b(difference|differs|distinguish|versus|\bvs\b|comparison|antar)\b", q_low)),
+        "origin": bool(re.search(r"\b(originate|origin|derived from|where did .+ come from|etymology)\b", q_low)),
     }
 
 
 def _satisfies_intent(sent: str, intent: dict[str, bool]) -> bool:
     """Verify if a sentence contains the required entity/attribute type for the query intent."""
     s_low = sent.lower()
-    if intent["temporal"]:
-        if not re.search(MONTHS_PAT, s_low) and not re.search(YEAR_PAT, s_low) and not re.search(r"\b\d{1,2}(st|nd|rd|th)?\b", s_low):
-            return False
-    if intent["location"]:
-        if not re.search(ADDRESS_PAT, s_low) and not re.search(r"\bin [A-Z][a-z]+", sent):
-            return False
-    if intent["numerical"]:
-        if not re.search(NUMERICAL_PAT, s_low):
-            return False
-    if intent["difference"]:
-        if not re.search(DIFFERENCE_PAT, s_low):
-            return False
-    if intent.get("origin"):
-        if not re.search(r"\b(origin|derived from|coined by|first used|history of|etymology|phrase comes from|term was created)\b", s_low):
-            return False
+    if intent.get("temporal") and not (re.search(MONTHS_PAT, s_low) or re.search(YEAR_PAT, s_low) or re.search(r"\b\d{1,2}(st|nd|rd|th)?\b", s_low)):
+        return False
+    if intent.get("location") and not (re.search(ADDRESS_PAT, s_low) or re.search(r"\bin [A-Z][a-z]+", sent)):
+        return False
+    if intent.get("numerical") and not re.search(NUMERICAL_PAT, s_low):
+        return False
+    if intent.get("difference") and not re.search(DIFFERENCE_PAT, s_low):
+        return False
+    if intent.get("origin") and not re.search(r"\b(origin|derived from|coined by|first used|history of|etymology|phrase comes from|term was created)\b", s_low):
+        return False
     return True
 
 
@@ -326,15 +322,8 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
             coverage = overlap / max(1, len(query_tokens))
 
             # Rule 4: Validate intent constraints
-            has_mandatory_intent = (
-                intent.get("temporal", False)
-                or intent.get("location", False)
-                or intent.get("difference", False)
-                or intent.get("numerical", False)
-                or intent.get("origin", False)
-            )
-            intent_ok = _satisfies_intent(sent, intent)
-            if has_mandatory_intent and not intent_ok:
+            active_intents = {k: v for k, v in intent.items() if v}
+            if active_intents and not _satisfies_intent(sent, active_intents):
                 continue
 
             # Informative predicate bonus
@@ -342,13 +331,13 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
                 r"\b(is|are|was|were|allows|means|refers|released|created|born|located|causes|because|hai|tha|thi|hote)\b",
                 sent.lower()
             ))
-            score = (overlap * 2.0) + (coverage * 3.0) + (1.5 if has_predicate else 0.0) + (2.0 if intent_ok else 0.0)
+            score = (overlap * 2.5) + (coverage * 3.0) + (1.5 if has_predicate else 0.0)
 
             # Context window: if sentence is an intro or short clause, combine with next sentence
             full_answer = sent
-            if idx + 1 < len(raw_sents) and len(sent) < 130:
+            if idx + 1 < len(raw_sents) and len(sent) < 150:
                 next_s = raw_sents[idx + 1]
-                if not next_s.endswith("?") and len(next_s) > 20 and not re.search(r"\b[A-E]\)", next_s):
+                if not next_s.endswith("?") and not next_s.endswith(":") and len(next_s) > 20 and not re.search(r"\b[A-E]\)", next_s):
                     full_answer = f"{sent} {next_s}"
 
             if score > best_score:
@@ -360,7 +349,7 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
     dur_ms = (time.perf_counter() - t0) * 1000
 
     min_overlap = 2 if len(query_tokens) >= 2 else 1
-    is_grounded = bool(best_answer) and (best_overlap >= min_overlap) and (best_score >= 4.5)
+    is_grounded = bool(best_answer) and (best_overlap >= min_overlap) and (best_score >= 3.5)
 
     if is_grounded and best_answer:
         return Answer(
