@@ -147,7 +147,7 @@ def _satisfies_intent(sent: str, intent: dict[str, bool]) -> bool:
     s_low = sent.lower()
     if intent.get("temporal") and not (re.search(MONTHS_PAT, s_low) or re.search(YEAR_PAT, s_low) or re.search(r"\b\d{1,2}(st|nd|rd|th)?\b", s_low)):
         return False
-    if intent.get("location") and not (re.search(ADDRESS_PAT, s_low) or re.search(r"\bin [A-Z][a-z]+", sent)):
+    if intent.get("location") and not re.search(ADDRESS_PAT, s_low):
         return False
     if intent.get("numerical") and not re.search(NUMERICAL_PAT, s_low):
         return False
@@ -300,10 +300,13 @@ def _generate_offline_extractive(query: str, results: list) -> Answer:
         if not raw_text or len(raw_text) < 15:
             continue
 
-        # Clean leading question / header sentence if present
+        # Clean all leading question / header sentences if present
         sents = [s.strip() for s in re.split(r"(?<=[.!?।])\s+", raw_text.strip()) if len(s.strip()) > 0]
-        if len(sents) > 1 and sents[0].endswith("?"):
-            text = " ".join(sents[1:]).strip()
+        while sents and (sents[0].endswith("?") or sents[0].endswith("??") or re.match(r"^(what|why|how|when|where|who|which|kya|kyun|kaise|kab)\b", sents[0].lower())):
+            sents.pop(0)
+
+        if sents:
+            text = " ".join(sents).strip()
         else:
             text = raw_text.strip()
 
