@@ -252,7 +252,7 @@ INSTRUCTIONS:
                     confidence=0.0,
                     cited_source=top_source,
                     generation_ms=dur_ms,
-                    model=f"groq/{model_name}",
+                    model=model_name,
                 )
 
             return Answer(
@@ -261,7 +261,7 @@ INSTRUCTIONS:
                 confidence=0.95,
                 cited_source=top_source,
                 generation_ms=dur_ms,
-                model=f"groq/{model_name}",
+                model=model_name,
             )
 
         except Exception:
