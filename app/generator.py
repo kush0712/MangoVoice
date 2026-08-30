@@ -204,14 +204,14 @@ INSTRUCTIONS:
 3. NEVER use outside knowledge or extrapolate."""
 
     models_to_try = [
-        os.getenv("GROQ_MODEL", "groq/compound-mini"),
-        "groq/compound-mini",
-        "allam-2-7b",
+        os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
     ]
     seen_models = set()
     models_to_try = [m for m in models_to_try if not (m in seen_models or seen_models.add(m))]
 
-    client = Groq(api_key=groq_api_key, timeout=4.0)
+    client = Groq(api_key=groq_api_key, timeout=1.5, max_retries=0)
 
     for model_name in models_to_try:
         try:

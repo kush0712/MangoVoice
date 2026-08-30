@@ -36,7 +36,7 @@ class MultilingualEmbedder:
             # 4 intra-op threads = same Railway billing cost as 2 threads.
             # Railway charges on total vCPU-seconds: 4 threads × 70ms =
             # 2 threads × 140ms = identical cost. Faster is better — same bill.
-            n_threads = int(os.environ.get("FASTEMBED_THREADS", "2"))
+            n_threads = int(os.environ.get("FASTEMBED_THREADS", "4"))
             self._model = TextEmbedding(
                 model_name=settings.embedding_model,
                 threads=n_threads,
